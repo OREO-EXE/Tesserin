@@ -178,23 +178,24 @@ const THEME_STYLES = `
 
 interface ThemeProviderProps {
   children: React.ReactNode
-  /** Initial palette – defaults to Ceramic White (light) */
-  defaultDark?: boolean
 }
 
 export function TesserinThemeProvider({
   children,
-  defaultDark = false,
 }: ThemeProviderProps) {
-  const [isDark, setIsDark] = useState(defaultDark)
+  // Initialize with system preference
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches
+    }
+    return false
+  })
   
-  // Auto-detect system dark mode preference on mount
+  // Listen for system theme changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-      setIsDark(mediaQuery.matches)
       
-      // Listen for system theme changes
       const handler = (e: MediaQueryListEvent) => setIsDark(e.matches)
       mediaQuery.addEventListener('change', handler)
       return () => mediaQuery.removeEventListener('change', handler)
