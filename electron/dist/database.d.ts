@@ -1,0 +1,53 @@
+import Database from 'better-sqlite3';
+/**
+ * Initialize the database with schema and seed data.
+ */
+export declare function initDatabase(): void;
+export declare function listNotes(): unknown[];
+export declare function getNote(id: string): unknown;
+export declare function getNoteByTitle(title: string): unknown;
+export declare function createNote(data: {
+    title?: string;
+    content?: string;
+    folderId?: string;
+}): unknown;
+export declare function updateNote(id: string, data: {
+    title?: string;
+    content?: string;
+    folderId?: string;
+    isPinned?: boolean;
+}): unknown;
+export declare function deleteNote(id: string): Database.RunResult;
+export declare function searchNotes(query: string): unknown[];
+export declare function listTags(): unknown[];
+export declare function createTag(name: string, color?: string): unknown;
+export declare function deleteTag(id: string): Database.RunResult;
+export declare function addTagToNote(noteId: string, tagId: string): void;
+export declare function removeTagFromNote(noteId: string, tagId: string): void;
+export declare function getTagsForNote(noteId: string): unknown[];
+export declare function listFolders(): unknown[];
+export declare function createFolder(name: string, parentId?: string): unknown;
+export declare function renameFolder(id: string, name: string): void;
+export declare function deleteFolder(id: string): Database.RunResult;
+export declare function listTasks(): unknown[];
+export declare function createTask(data: {
+    title: string;
+    noteId?: string;
+    columnId?: string;
+    priority?: number;
+    dueDate?: string;
+}): unknown;
+export declare function updateTask(id: string, data: Record<string, unknown>): unknown;
+export declare function deleteTask(id: string): Database.RunResult;
+export declare function listTemplates(): unknown[];
+export declare function getTemplate(id: string): unknown;
+export declare function createTemplate(data: {
+    name: string;
+    content: string;
+    category?: string;
+}): unknown;
+export declare function deleteTemplate(id: string): Database.RunResult;
+export declare function getSetting(key: string): string | null;
+export declare function setSetting(key: string, value: string): void;
+export declare function getAllSettings(): Record<string, string>;
+//# sourceMappingURL=database.d.ts.map
