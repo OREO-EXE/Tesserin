@@ -98,10 +98,53 @@ interface TesserinWindow {
     isMaximized(): Promise<boolean>
 }
 
+interface TesserinMcpServerConfig {
+    id: string
+    name: string
+    transport: 'stdio' | 'sse'
+    command?: string
+    args?: string[]
+    env?: Record<string, string>
+    url?: string
+    enabled: boolean
+}
+
+interface TesserinMcpToolInfo {
+    serverId: string
+    serverName: string
+    name: string
+    description: string
+    inputSchema: Record<string, unknown>
+}
+
+interface TesserinMcpConnectionStatus {
+    serverId: string
+    serverName: string
+    status: 'connected' | 'disconnected' | 'connecting' | 'error'
+    error?: string
+    toolCount: number
+}
+
+interface TesserinMCP {
+    connect(config: TesserinMcpServerConfig): Promise<{
+        status: TesserinMcpConnectionStatus
+        tools: TesserinMcpToolInfo[]
+    }>
+    disconnect(serverId: string): Promise<void>
+    callTool(serverId: string, toolName: string, args: Record<string, unknown>): Promise<string>
+    getStatuses(): Promise<{
+        statuses: TesserinMcpConnectionStatus[]
+        tools: TesserinMcpToolInfo[]
+    }>
+    getTools(): Promise<TesserinMcpToolInfo[]>
+    getServerTools(serverId: string): Promise<TesserinMcpToolInfo[]>
+}
+
 interface TesserinAPI {
     db: TesserinDB
     ai: TesserinAI
     window: TesserinWindow
+    mcp?: TesserinMCP
 }
 
 declare global {

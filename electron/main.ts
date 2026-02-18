@@ -2,9 +2,18 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
 import { registerIpcHandlers } from './ipc-handlers'
 import { initDatabase } from './database'
+import { startMcpServerStdio } from './mcp-server'
 
 // Determine if we're in development mode
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+
+// If launched with --mcp flag, run as MCP server on stdio and exit
+if (process.argv.includes('--mcp')) {
+  startMcpServerStdio().catch((err) => {
+    console.error('[Tesserin] Failed to start MCP server:', err)
+    process.exit(1)
+  })
+}
 
 let mainWindow: BrowserWindow | null = null
 

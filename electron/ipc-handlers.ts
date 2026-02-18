@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import * as db from './database'
 import * as ai from './ai-service'
+import { mcpClientManager, type McpServerConfig } from './mcp-client'
 
 /**
  * Register all IPC handlers for the Tesserin app.
@@ -89,5 +90,40 @@ export function registerIpcHandlers(): void {
 
     ipcMain.handle('ai:listModels', async () => {
         return ai.listModels()
+    })
+
+    // ── MCP (Model Context Protocol) ──────────────────────────────
+    ipcMain.handle('mcp:connect', async (_e, config: McpServerConfig) => {
+        await mcpClientManager.connect(config)
+        const tools = mcpClientManager.getServerTools(config.id)
+        const statuses = mcpClientManager.getStatuses()
+        const status = statuses.find(s => s.serverId === config.id)
+        return {
+            status: status || { serverId: config.id, serverName: config.name, status: 'error', toolCount: 0 },
+            tools,
+        }
+    })
+
+    ipcMain.handle('mcp:disconnect', async (_e, serverId: string) => {
+        await mcpClientManager.disconnect(serverId)
+    })
+
+    ipcMain.handle('mcp:callTool', async (_e, serverId: string, toolName: string, args: Record<string, unknown>) => {
+        return mcpClientManager.callTool(serverId, toolName, args)
+    })
+
+    ipcMain.handle('mcp:getStatuses', async () => {
+        return {
+            statuses: mcpClientManager.getStatuses(),
+            tools: mcpClientManager.getAllTools(),
+        }
+    })
+
+    ipcMain.handle('mcp:getTools', async () => {
+        return mcpClientManager.getAllTools()
+    })
+
+    ipcMain.handle('mcp:getServerTools', async (_e, serverId: string) => {
+        return mcpClientManager.getServerTools(serverId)
     })
 }

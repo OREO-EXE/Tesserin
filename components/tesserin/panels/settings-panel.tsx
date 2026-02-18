@@ -25,6 +25,10 @@ import {
   FiZap,
   FiMonitor,
   FiHardDrive,
+  FiPlus,
+  FiLink,
+  FiPlay,
+  FiPause,
 } from "react-icons/fi"
 import {
   HiOutlineCpuChip,
@@ -32,6 +36,7 @@ import {
 } from "react-icons/hi2"
 import { getSetting, setSetting } from "@/lib/storage-client"
 import { useNotes } from "@/lib/notes-store"
+import { useMcp, type McpServerConfig } from "@/lib/mcp-client"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -60,6 +65,10 @@ interface SettingsValues {
   "ai.streamResponses": string
   "ai.maxContextLength": string
   "ai.temperature": string
+
+  // MCP
+  "mcp.serverEnabled": string
+  "mcp.serverPort": string
 
   // Appearance
   "appearance.theme": string
@@ -98,6 +107,9 @@ const DEFAULTS: SettingsValues = {
   "ai.maxContextLength": "4096",
   "ai.temperature": "0.7",
 
+  "mcp.serverEnabled": "true",
+  "mcp.serverPort": "3100",
+
   "appearance.theme": "dark",
   "appearance.accentColor": "#FACC15",
   "appearance.uiScale": "100",
@@ -114,12 +126,13 @@ const DEFAULTS: SettingsValues = {
 /*  Section definitions                                                */
 /* ------------------------------------------------------------------ */
 
-type SectionId = "general" | "editor" | "ai" | "appearance" | "vault" | "shortcuts" | "about"
+type SectionId = "general" | "editor" | "ai" | "mcp" | "appearance" | "vault" | "shortcuts" | "about"
 
 const SECTIONS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
   { id: "general",    label: "General",    icon: <FiSettings size={16} /> },
   { id: "editor",     label: "Editor",     icon: <FiEdit3 size={16} /> },
   { id: "ai",         label: "AI / SAM",   icon: <HiOutlineCpuChip size={16} /> },
+  { id: "mcp",        label: "MCP",        icon: <FiLink size={16} /> },
   { id: "appearance", label: "Appearance", icon: <FiSun size={16} /> },
   { id: "vault",      label: "Vault & Data", icon: <FiDatabase size={16} /> },
   { id: "shortcuts",  label: "Shortcuts",  icon: <FiCommand size={16} /> },
@@ -317,6 +330,14 @@ export function SettingsPanel() {
   const [saved, setSaved] = useState(false)
   const [aiStatus, setAiStatus] = useState<"checking" | "connected" | "disconnected" | null>(null)
   const [aiModels, setAiModels] = useState<string[]>([])
+
+  // MCP state
+  const mcp = useMcp()
+  const [mcpNewServerName, setMcpNewServerName] = useState("")
+  const [mcpNewServerTransport, setMcpNewServerTransport] = useState<"stdio" | "sse">("sse")
+  const [mcpNewServerUrl, setMcpNewServerUrl] = useState("")
+  const [mcpNewServerCommand, setMcpNewServerCommand] = useState("")
+  const [mcpNewServerArgs, setMcpNewServerArgs] = useState("")
 
   /* ---- Load persisted settings ---- */
   useEffect(() => {
@@ -703,6 +724,239 @@ export function SettingsPanel() {
     </div>
   )
 
+  const renderMCP = () => {
+    const addMcpServer = () => {
+      if (!mcpNewServerName.trim()) return
+      const id = `mcp-${Date.now()}`
+      const config: McpServerConfig = {
+        id,
+        name: mcpNewServerName.trim(),
+        transport: mcpNewServerTransport,
+        enabled: true,
+      }
+      if (mcpNewServerTransport === "sse") {
+        config.url = mcpNewServerUrl.trim() || undefined
+      } else {
+        config.command = mcpNewServerCommand.trim() || undefined
+        config.args = mcpNewServerArgs.trim() ? mcpNewServerArgs.trim().split(/\s+/) : undefined
+      }
+      mcp.addServer(config)
+      setMcpNewServerName("")
+      setMcpNewServerUrl("")
+      setMcpNewServerCommand("")
+      setMcpNewServerArgs("")
+    }
+
+    return (
+      <div>
+        <SectionHeading title="MCP Servers" icon={<FiLink size={16} />} />
+
+        <div className="text-[11px] mb-4" style={{ color: "var(--text-tertiary)" }}>
+          Connect to external MCP servers to give SAM access to additional tools (web search, databases, APIs, etc.).
+          Tesserin also exposes its vault as an MCP server so external AI agents can interact with your notes.
+        </div>
+
+        {/* Tesserin built-in MCP server status */}
+        <div
+          className="mb-4 p-3.5 rounded-xl"
+          style={{
+            background: "var(--bg-panel-inset)",
+            boxShadow: "var(--input-inner-shadow)",
+            border: "1px solid var(--border-dark)",
+          }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#22c55e", boxShadow: "0 0 8px #22c55e" }} />
+              <span className="text-[11px] font-semibold" style={{ color: "var(--text-primary)" }}>Tesserin Vault Server</span>
+            </div>
+            <span className="text-[9px] font-mono px-2 py-0.5 rounded-lg" style={{ backgroundColor: "var(--bg-panel)", color: "var(--text-tertiary)", border: "1px solid var(--border-dark)" }}>
+              Built-in
+            </span>
+          </div>
+          <div className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+            Exposes notes, tags, tasks, and folders as MCP tools. Use <code className="font-mono" style={{ color: "var(--accent-primary)" }}>tesserin --mcp</code> to start as a standalone stdio server.
+          </div>
+        </div>
+
+        <SettingRow label="Expose vault via MCP" description="Allow external AI agents to access your vault through the MCP protocol.">
+          <Toggle
+            checked={settings["mcp.serverEnabled"] === "true"}
+            onChange={(v) => update("mcp.serverEnabled", String(v))}
+          />
+        </SettingRow>
+
+        {/* Connected external servers */}
+        <div className="mt-6">
+          <div className="text-[10px] font-semibold mb-3" style={{ color: "var(--text-tertiary)" }}>CONNECTED SERVERS</div>
+
+          {mcp.servers.length === 0 && (
+            <div className="text-[11px] py-4 text-center" style={{ color: "var(--text-tertiary)", opacity: 0.6 }}>
+              No external MCP servers configured yet.
+            </div>
+          )}
+
+          {mcp.servers.map((server) => {
+            const status = mcp.statuses.find((s) => s.serverId === server.id)
+            const isConnected = status?.status === "connected"
+            const isConnecting = status?.status === "connecting"
+            const isError = status?.status === "error"
+
+            return (
+              <div
+                key={server.id}
+                className="mb-2 p-3 rounded-xl flex items-center justify-between"
+                style={{
+                  background: "var(--bg-panel-inset)",
+                  boxShadow: "var(--input-inner-shadow)",
+                  border: "1px solid var(--border-dark)",
+                }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-2 h-2 rounded-full"
+                      style={{
+                        backgroundColor: isConnected ? "#22c55e" : isConnecting ? "#facc15" : isError ? "#ef4444" : "#666",
+                        boxShadow: isConnected ? "0 0 6px #22c55e" : isError ? "0 0 6px #ef4444" : "none",
+                      }}
+                    />
+                    <span className="text-[11px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>
+                      {server.name}
+                    </span>
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--bg-panel)", color: "var(--text-tertiary)" }}>
+                      {server.transport}
+                    </span>
+                    {isConnected && status && (
+                      <span className="text-[9px]" style={{ color: "var(--text-tertiary)" }}>
+                        {status.toolCount} tool{status.toolCount !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+                  {isError && status?.error && (
+                    <div className="text-[9px] mt-1 truncate" style={{ color: "#ef4444" }}>{status.error}</div>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 ml-2">
+                  {isConnected ? (
+                    <button
+                      onClick={() => mcp.disconnect(server.id)}
+                      className="skeuo-btn px-2 py-1 rounded-lg text-[9px] font-semibold flex items-center gap-1 hover:brightness-110 active:scale-95 transition-all"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      <FiPause size={9} /> Disconnect
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => mcp.connect(server.id)}
+                      className="skeuo-btn px-2 py-1 rounded-lg text-[9px] font-semibold flex items-center gap-1 hover:brightness-110 active:scale-95 transition-all"
+                      style={{ color: "var(--accent-primary)" }}
+                      disabled={isConnecting}
+                    >
+                      {isConnecting ? <FiRefreshCw size={9} className="animate-spin" /> : <FiPlay size={9} />}
+                      {isConnecting ? "Connecting…" : "Connect"}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => mcp.removeServer(server.id)}
+                    className="skeuo-btn px-2 py-1 rounded-lg text-[9px] font-semibold flex items-center gap-1 hover:brightness-110 active:scale-95 transition-all"
+                    style={{ color: "#ef4444" }}
+                  >
+                    <FiTrash2 size={9} />
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Add new server */}
+        <div className="mt-4">
+          <div className="text-[10px] font-semibold mb-3" style={{ color: "var(--text-tertiary)" }}>ADD SERVER</div>
+          <div
+            className="p-3.5 rounded-xl space-y-3"
+            style={{
+              background: "var(--bg-panel-inset)",
+              boxShadow: "var(--input-inner-shadow)",
+              border: "1px solid var(--border-dark)",
+            }}
+          >
+            <div className="flex gap-2">
+              <TextInput
+                value={mcpNewServerName}
+                onChange={setMcpNewServerName}
+                placeholder="Server name (e.g. Web Search)"
+              />
+              <SelectInput
+                value={mcpNewServerTransport}
+                onChange={(v) => setMcpNewServerTransport(v as "stdio" | "sse")}
+                options={[
+                  { value: "sse", label: "SSE (HTTP)" },
+                  { value: "stdio", label: "Stdio" },
+                ]}
+              />
+            </div>
+
+            {mcpNewServerTransport === "sse" ? (
+              <TextInput
+                value={mcpNewServerUrl}
+                onChange={setMcpNewServerUrl}
+                placeholder="Server URL (e.g. http://localhost:8000/sse)"
+              />
+            ) : (
+              <div className="space-y-2">
+                <TextInput
+                  value={mcpNewServerCommand}
+                  onChange={setMcpNewServerCommand}
+                  placeholder="Command (e.g. uvx mcp-server-fetch)"
+                />
+                <TextInput
+                  value={mcpNewServerArgs}
+                  onChange={setMcpNewServerArgs}
+                  placeholder="Arguments (space-separated)"
+                />
+              </div>
+            )}
+
+            <button
+              onClick={addMcpServer}
+              disabled={!mcpNewServerName.trim()}
+              className="skeuo-btn w-full px-3 py-2 rounded-xl text-[10px] font-semibold flex items-center justify-center gap-1.5 hover:brightness-110 active:scale-95 transition-all disabled:opacity-30"
+              style={{ color: "var(--accent-primary)" }}
+            >
+              <FiPlus size={11} />
+              Add MCP Server
+            </button>
+          </div>
+        </div>
+
+        {/* Connected tools list */}
+        {mcp.tools.length > 0 && (
+          <div className="mt-6">
+            <div className="text-[10px] font-semibold mb-2" style={{ color: "var(--text-tertiary)" }}>AVAILABLE MCP TOOLS ({mcp.tools.length})</div>
+            <div className="flex flex-wrap gap-1.5">
+              {mcp.tools.map((tool) => (
+                <span
+                  key={`${tool.serverId}:${tool.name}`}
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-mono"
+                  style={{
+                    backgroundColor: "var(--bg-panel-inset)",
+                    color: "var(--text-secondary)",
+                    boxShadow: "var(--input-inner-shadow)",
+                    border: "1px solid var(--border-dark)",
+                  }}
+                  title={`${tool.serverName}: ${tool.description}`}
+                >
+                  {tool.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const renderAppearance = () => (
     <div>
       <SectionHeading title="Appearance" icon={<FiSun size={16} />} />
@@ -989,13 +1243,14 @@ export function SettingsPanel() {
       case "general":    return renderGeneral()
       case "editor":     return renderEditor()
       case "ai":         return renderAI()
+      case "mcp":        return renderMCP()
       case "appearance": return renderAppearance()
       case "vault":      return renderVault()
       case "shortcuts":  return renderShortcuts()
       case "about":      return renderAbout()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSection, settings, aiStatus, aiModels, vaultStats])
+  }, [activeSection, settings, aiStatus, aiModels, vaultStats, mcp.servers, mcp.statuses, mcp.tools, mcpNewServerName, mcpNewServerTransport, mcpNewServerUrl, mcpNewServerCommand, mcpNewServerArgs])
 
   /* ================================================================ */
   /*  RENDER                                                           */

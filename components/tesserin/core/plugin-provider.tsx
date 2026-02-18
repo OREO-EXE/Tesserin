@@ -14,6 +14,7 @@ import {
 import { useNotes } from "@/lib/notes-store"
 import { getSetting, setSetting } from "@/lib/storage-client"
 import { BUILT_IN_PLUGINS } from "@/lib/builtin-plugins"
+import { mcpStore } from "@/lib/mcp-client"
 import {
   getRandomTip,
   getContextualTip,
@@ -148,6 +149,60 @@ export function PluginProvider({ children, onNotice, onNavigateTab }: PluginProv
       })
     }
   }, [selectedNoteId])
+
+  // Bridge MCP tools into the SAM tool registry
+  useEffect(() => {
+    // Auto-connect enabled MCP servers on mount
+    mcpStore.connectEnabled().catch(() => {})
+
+    // Subscribe to MCP tool changes and bridge them as SAM tools
+    const MCP_PLUGIN_ID = "com.tesserin.mcp-bridge"
+    let currentToolNames: string[] = []
+
+    const unsubscribe = mcpStore.subscribe(() => {
+      const state = mcpStore.getSnapshot()
+
+      // Remove previously registered MCP tools
+      for (const toolName of currentToolNames) {
+        // The plugin system doesn't have individual tool removal,
+        // so we re-register all MCP tools on each change
+      }
+
+      // Register all MCP tools as SAM tools
+      currentToolNames = []
+      for (const tool of state.tools) {
+        const samToolName = `mcp:${tool.serverName}:${tool.name}`
+        currentToolNames.push(samToolName)
+
+        // Convert MCP input schema to SAM parameter format
+        const parameters: Record<string, { type: string; description: string; required?: boolean }> = {}
+        const schema = tool.inputSchema as {
+          properties?: Record<string, { type?: string; description?: string }>
+          required?: string[]
+        }
+        if (schema?.properties) {
+          for (const [key, val] of Object.entries(schema.properties)) {
+            parameters[key] = {
+              type: val.type || "string",
+              description: val.description || key,
+              required: schema.required?.includes(key),
+            }
+          }
+        }
+
+        pluginRegistry.addSAMTool(MCP_PLUGIN_ID, {
+          name: samToolName,
+          description: `[${tool.serverName}] ${tool.description}`,
+          parameters,
+          execute: async (params) => {
+            return mcpStore.callTool(tool.serverId, tool.name, params)
+          },
+        })
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
 
   return <>{children}</>
 }

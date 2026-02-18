@@ -121,6 +121,26 @@ const tesserinAPI = {
         close: () => ipcRenderer.send('window:close'),
         isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
     },
+
+    // ── MCP (Model Context Protocol) ──────────────────────────────────
+    mcp: {
+        connect: (config: {
+            id: string
+            name: string
+            transport: 'stdio' | 'sse'
+            command?: string
+            args?: string[]
+            env?: Record<string, string>
+            url?: string
+            enabled: boolean
+        }) => ipcRenderer.invoke('mcp:connect', config),
+        disconnect: (serverId: string) => ipcRenderer.invoke('mcp:disconnect', serverId),
+        callTool: (serverId: string, toolName: string, args: Record<string, unknown>) =>
+            ipcRenderer.invoke('mcp:callTool', serverId, toolName, args),
+        getStatuses: () => ipcRenderer.invoke('mcp:getStatuses'),
+        getTools: () => ipcRenderer.invoke('mcp:getTools'),
+        getServerTools: (serverId: string) => ipcRenderer.invoke('mcp:getServerTools', serverId),
+    },
 }
 
 contextBridge.exposeInMainWorld('tesserin', tesserinAPI)
