@@ -31,6 +31,7 @@ import { SplitPanes, useSplitPanes } from "@/components/tesserin/workspace/split
 import { SettingsPanel } from "@/components/tesserin/panels/settings-panel"
 
 import { NotesProvider, useNotes } from "@/lib/notes-store"
+import { getStartupTip, formatShortcut, type TesserinTip } from "@/lib/tips"
 
 /**
  * Tesserin App — Root Component
@@ -64,6 +65,37 @@ function AppContent() {
         setNotice({ message, visible: true })
         setTimeout(() => setNotice(prev => ({ ...prev, visible: false })), duration)
     }, [])
+
+    // Startup tip — show one random tip 3s after first render
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            const tip = getStartupTip()
+            const shortcutBadge = tip.shortcut ? ` (${formatShortcut(tip.shortcut)})` : ""
+            handleNotice(`💡 ${tip.text}${shortcutBadge}`, 6000)
+        }, 3000)
+        return () => clearTimeout(timer)
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Tip action handler — maps tip actions to actual state toggles
+    const handleTipAction = useCallback((action: string) => {
+        switch (action) {
+            case "open-search": setShowSearch(true); break
+            case "open-export": setShowExport(true); break
+            case "open-templates": setShowTemplates(true); break
+            case "open-backlinks": setShowBacklinks(true); break
+            case "open-version-history": setShowVersionHistory(true); break
+            case "open-quick-capture": setShowQuickCapture(true); break
+            case "open-references": setShowReferences(true); break
+            case "open-split": openSplit(); break
+            case "navigate-daily": setActiveTab("daily"); break
+            case "navigate-graph": setActiveTab("graph"); break
+            case "navigate-canvas": setActiveTab("canvas"); break
+            case "navigate-kanban": setActiveTab("kanban"); break
+            case "navigate-sam": setActiveTab("sam"); break
+            case "navigate-timeline": setActiveTab("timeline"); break
+            case "navigate-settings": setActiveTab("settings"); break
+        }
+    }, [openSplit])
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -178,8 +210,8 @@ function AppContent() {
                     </main>
                 </div>
 
-                {/* ── Status Bar (plugin widgets) ── */}
-                <StatusBar />
+                {/* ── Status Bar (plugin widgets + rotating tips) ── */}
+                <StatusBar activeTab={activeTab} onTipAction={handleTipAction} />
 
                 {/* ── Floating AI Chat ── */}
                 <FloatingAIChat />

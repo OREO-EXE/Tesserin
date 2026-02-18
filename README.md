@@ -2,32 +2,48 @@
 
 # ✦ Tesserin
 
-**AI-native productivity workspace — local-first, blazing fast, beautifully crafted.**
+### *Think deeper. Write freely.*
 
-Knowledge graphs · Creative canvas · Kanban boards · Markdown editor · AI chat — all in one desktop app.
+**AI-native knowledge workspace — local-first, offline-capable, beautifully crafted.**
 
-[![CI](https://github.com/tesserin/tesserin/actions/workflows/ci.yml/badge.svg)](https://github.com/tesserin/tesserin/actions/workflows/ci.yml)
-[![Release](https://github.com/tesserin/tesserin/actions/workflows/release.yml/badge.svg)](https://github.com/tesserin/tesserin/actions/workflows/release.yml)
+Knowledge graphs · Reference manager · Block references · AI chat · Canvas · Kanban — all in one desktop app.
+
+[![CI](https://github.com/AnvinX1/Tesserin-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/AnvinX1/Tesserin-pro/actions/workflows/ci.yml)
+[![Release](https://github.com/AnvinX1/Tesserin-pro/actions/workflows/release.yml/badge.svg)](https://github.com/AnvinX1/Tesserin-pro/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-FACC15.svg)](LICENSE)
 [![Electron](https://img.shields.io/badge/Electron-33-47848F.svg?logo=electron)](https://www.electronjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6.svg?logo=typescript)](https://www.typescriptlang.org)
-
-<br />
-
-<img src="https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="macOS" />
-<img src="https://img.shields.io/badge/Windows-0078D4?style=for-the-badge&logo=windows11&logoColor=white" alt="Windows" />
-<img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Linux" />
 
 </div>
 
 ---
 
-## ⚡ Quick Start
+## 📥 Download
+
+**Get the latest release for your platform — click to download:**
+
+<div align="center">
+
+| Platform | Download | Format |
+|----------|----------|--------|
+| <img src="https://img.shields.io/badge/Windows-0078D4?style=flat-square&logo=windows11&logoColor=white" /> | [**Tesserin-Setup.exe**](https://github.com/AnvinX1/Tesserin-pro/releases/latest/download/Tesserin-Setup-1.0.0.exe) | NSIS installer |
+| <img src="https://img.shields.io/badge/macOS-000000?style=flat-square&logo=apple&logoColor=white" /> | [**Tesserin.dmg**](https://github.com/AnvinX1/Tesserin-pro/releases/latest/download/Tesserin-1.0.0.dmg) | Disk image |
+| <img src="https://img.shields.io/badge/Linux-FCC624?style=flat-square&logo=linux&logoColor=black" /> | [**Tesserin.AppImage**](https://github.com/AnvinX1/Tesserin-pro/releases/latest/download/Tesserin-1.0.0.AppImage) | Portable |
+| <img src="https://img.shields.io/badge/Linux-FCC624?style=flat-square&logo=linux&logoColor=black" /> | [**Tesserin.deb**](https://github.com/AnvinX1/Tesserin-pro/releases/latest/download/tesserin_1.0.0_amd64.deb) | Debian/Ubuntu |
+| <img src="https://img.shields.io/badge/Linux-FCC624?style=flat-square&logo=linux&logoColor=black" /> | [**Tesserin.rpm**](https://github.com/AnvinX1/Tesserin-pro/releases/latest/download/tesserin-1.0.0.x86_64.rpm) | Fedora/RHEL |
+
+</div>
+
+> **Or browse all releases:** [github.com/AnvinX1/Tesserin-pro/releases](https://github.com/AnvinX1/Tesserin-pro/releases)
+
+---
+
+## ⚡ Quick Start (Development)
 
 ```bash
 # Clone the repository
-git clone https://github.com/tesserin/tesserin.git
-cd tesserin
+git clone https://github.com/AnvinX1/Tesserin-pro.git
+cd Tesserin-pro
 
 # Install dependencies (pnpm required)
 pnpm install
@@ -42,38 +58,79 @@ The app opens automatically at `http://localhost:5173` with Electron wrapping it
 
 ## ✦ Features
 
+### Core Workspace
+
 | Module | Description |
 |--------|-------------|
-| **Markdown Editor** | Rich WYSIWYG editor with live preview, wiki-links, and frontmatter |
-| **Knowledge Graph** | Interactive D3-powered graph showing note connections |
-| **Creative Canvas** | Infinite canvas powered by Excalidraw with auto-save |
-| **Kanban Board** | Drag-and-drop task management with priority levels |
-| **Daily Notes** | Automatic daily journal entries with templating |
-| **AI Chat** | Floating AI assistant powered by local Ollama models |
-| **Search Palette** | Lightning-fast `Cmd+K` fuzzy search across all notes |
-| **Export** | Export notes to PDF, Markdown, HTML, or JSON |
-| **Templates** | Reusable note templates with categories |
+| **Markdown Editor** | Rich split-pane editor with wiki-links `[[links]]`, task lists, and live preview |
+| **Knowledge Graph** | Interactive D3-powered graph with Force, Radial, and Mind Map layouts |
+| **Creative Canvas** | Infinite whiteboard powered by Excalidraw with auto-save |
+| **Kanban Board** | Drag-and-drop task management with priority levels and columns |
+| **Daily Notes** | Auto-created daily journals with 6 built-in templates and streak tracking |
+| **Timeline View** | Chronological note visualisation for tracking project progress |
+| **Code View** | Syntax-highlighted code editor for snippets and scripts |
+
+### Researcher Features
+
+| Module | Description |
+|--------|-------------|
+| **Reference Manager** | Import BibTeX, browse library, insert `[@citations]`, auto-generate bibliographies (APA/Chicago/IEEE/MLA) |
+| **Block References** | Roam-style `((block-id))` inline refs and `!((block-id))` embeds across notes |
+| **Backlinks Panel** | Incoming links, outgoing links, block references, and **unlinked mentions** detection |
+| **Fuzzy Search** | Trigram-indexed fuzzy search with `tag:`, `date:`, `in:` filters |
+| **Export Pipeline** | Export to **PDF**, **LaTeX**, **DOCX** (Word XML), **HTML**, Markdown, Plain Text, JSON — single or batch |
+| **Version History** | Browse and restore previous versions of any note |
+| **Templates** | Reusable note templates with `{{date}}` variables and categories |
+
+### Intelligence & UX
+
+| Module | Description |
+|--------|-------------|
+| **SAM (AI Assistant)** | Local AI powered by Ollama — brainstorm, summarise, rewrite. Fully offline, fully private. |
+| **Search Palette** | `Ctrl+K` command palette with fuzzy search, plugin commands, and tab navigation |
+| **Smart Tips** | Rotating tips in the status bar help you discover shortcuts and features organically |
+| **Plugin System** | Event-driven plugin architecture with commands, panels, status bar widgets, and SAM tools |
+| **Split Panes** | Side-by-side editing with `Ctrl+\` |
 
 ### Design Philosophy
 
 - **Local-first** — All data lives in SQLite on your machine. No cloud, no accounts, no tracking.
-- **Offline-capable** — Everything works without an internet connection.
-- **Skeuomorphic UI** — Premium Obsidian Black (#050505) palette with gold (#FACC15) accents.
+- **Offline-capable** — Everything works without an internet connection, including AI.
+- **Skeuomorphic UI** — Premium Obsidian Black `#050505` palette with gold `#FACC15` accents.
 - **Fast** — Vite HMR in dev, optimized chunked builds in production.
+
+---
+
+## ⌨️ Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl + K` | Search palette (notes, commands, tabs) |
+| `Ctrl + E` | Export current note |
+| `Ctrl + T` | Template manager |
+| `Ctrl + \` | Split editor panes |
+| `Ctrl + Shift + D` | Quick Capture (daily note overlay) |
+| `Ctrl + Shift + R` | Reference Manager |
+| `Ctrl + Shift + B` | Backlinks panel |
+| `Ctrl + Shift + H` | Version history |
+
+> Replace `Ctrl` with `Cmd` on macOS.
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-tesserin/
+Tesserin-pro/
 ├── src/                    # React renderer (Vite)
 │   ├── App.tsx             # Root component – layout orchestrator
 │   ├── main.tsx            # ReactDOM entry point
-│   ├── styles/             # Global CSS (Tailwind v4)
 │   └── types/              # TypeScript declarations
 ├── components/
-│   ├── tesserin/           # Core app components (graph, canvas, kanban…)
+│   ├── tesserin/
+│   │   ├── core/           # Logo, loading screen, theme, title bar, plugins
+│   │   ├── workspace/      # Editor, canvas, graph, kanban, daily, SAM, timeline
+│   │   └── panels/         # Sidebar, search, export, backlinks, references, settings
 │   └── ui/                 # Shadcn/Radix design system primitives
 ├── electron/
 │   ├── main.ts             # Electron main process
@@ -84,6 +141,11 @@ tesserin/
 ├── lib/
 │   ├── storage-client.ts   # Renderer storage API (IPC + localStorage fallback)
 │   ├── notes-store.tsx     # React context for notes state
+│   ├── fuzzy-search.ts     # Trigram-indexed fuzzy matching engine
+│   ├── block-references.ts # Block ID & ((ref)) system
+│   ├── reference-manager.ts# BibTeX parser & citation formatting
+│   ├── plugin-system.ts    # Plugin registry & event bus
+│   ├── tips.ts             # Smart tips & shortcut discovery
 │   └── utils.ts            # Shared utilities (cn, etc.)
 ├── .github/workflows/      # CI + cross-platform release pipeline
 └── package.json
@@ -97,7 +159,7 @@ tesserin/
 │  (Renderer) │   contextBridge      │  (Bridge)    │   synchronous         │  (Local)  │
 └─────────────┘                      └──────────────┘                       └──────────┘
        │                                                                          │
-       │  localStorage fallback (dev mode)                                        │
+       │  localStorage fallback (dev/web mode)                                    │
        └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -105,15 +167,13 @@ tesserin/
 
 | Table | Purpose |
 |-------|---------|
-| `notes` | Markdown notes with folder organization & pinning |
+| `notes` | Markdown notes with folder organisation & pinning |
 | `folders` | Hierarchical folder tree |
 | `tags` / `note_tags` | Many-to-many tagging system |
 | `tasks` | Kanban tasks with columns, priority, due dates |
 | `templates` | Reusable note templates |
 | `settings` | Key-value app settings |
-| `canvases` | Excalidraw canvas state (elements + appState + files) |
-
-Production pragmas: `busy_timeout=5000`, `synchronous=NORMAL`, `cache_size=-64000`
+| `canvases` | Excalidraw canvas state |
 
 ---
 
@@ -146,18 +206,18 @@ Outputs land in `release/`:
 
 ### CI/CD (GitHub Actions)
 
-The project includes two workflows:
-
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
-| **CI** | Push to `main`/`dev`, PRs | Type-check, lint, build |
-| **Release** | Push tag `v*` or manual | Build + package for macOS, Windows, Linux; create GitHub Release |
+| **CI** | Push to `main`/`dev`, PRs | Build renderer + Electron main |
+| **Release** | Push tag `v*` or manual | Build + package for macOS, Windows, Linux; create GitHub Release with download links |
 
 To create a release:
 ```bash
 git tag v1.0.0
 git push origin v1.0.0
 ```
+
+The release workflow builds for all three platforms and publishes the binaries to **GitHub Releases**. Users can then download directly from the links in the [Download](#-download) section above.
 
 ---
 
@@ -173,17 +233,8 @@ git push origin v1.0.0
 | **Canvas** | Excalidraw 0.18 |
 | **Graphs** | D3.js 7 |
 | **AI** | Ollama (local LLMs) |
+| **Citations** | BibTeX parser + APA/Chicago/IEEE/MLA |
 | **Package Manager** | pnpm |
-
----
-
-## ⌨️ Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Cmd/Ctrl + K` | Search palette |
-| `Cmd/Ctrl + E` | Export panel |
-| `Cmd/Ctrl + T` | Template manager |
 
 ---
 
@@ -213,6 +264,6 @@ git push origin feat/your-feature
 
 **Built with obsession by the Tesserin team.**
 
-✦
+*Think deeper. Write freely.* ✦
 
 </div>

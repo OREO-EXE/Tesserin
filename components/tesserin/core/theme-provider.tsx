@@ -171,6 +171,22 @@ const THEME_STYLES = `
     100% { width: 100%; }
   }
 
+  /* Loading screen animations */
+  @keyframes loading-progress {
+    0%   { width: 0%; }
+    100% { width: 100%; }
+  }
+
+  @keyframes loading-pulse {
+    0%, 100% { opacity: 0.4; transform: translate(-50%, -60%) scale(1); }
+    50%      { opacity: 1; transform: translate(-50%, -60%) scale(1.15); }
+  }
+
+  @keyframes loading-float {
+    0%, 100% { transform: translateY(0) scale(1); opacity: 0.3; }
+    50%      { transform: translateY(-18px) scale(1.3); opacity: 0.7; }
+  }
+
   /* ── Global UI readability ────────────────────────────────── */
   html {
     /* Use 18px root instead of browser default 16px.

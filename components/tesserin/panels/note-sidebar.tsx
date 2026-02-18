@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react"
 import { FiSearch, FiPlus, FiFileText, FiLink2, FiList, FiClock, FiX } from "react-icons/fi"
 import { useNotes, parseWikiLinks } from "@/lib/notes-store"
 import { SkeuoPanel } from "../core/skeuo-panel"
+import { TesserinLogo } from "../core/tesserin-logo"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -189,10 +190,16 @@ export function NoteSidebar({ visible, onClose }: NoteSidebarProps) {
       {/* Notes list */}
       <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-2">
         {displayNotes.length === 0 && (
-          <div className="text-center py-8">
+          <div className="text-center py-8 flex flex-col items-center gap-3">
+            <TesserinLogo size={32} animated={false} />
             <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
               {search ? "No matching notes" : "No notes yet"}
             </p>
+            {!search && (
+              <p className="text-[10px]" style={{ color: "var(--text-tertiary)", opacity: 0.6 }}>
+                Press Ctrl+K to search or create
+              </p>
+            )}
           </div>
         )}
 

@@ -2,6 +2,9 @@
 
 import React, { useEffect, useRef, useCallback, useState } from "react"
 import {
+  FiZap, FiStar, FiCpu, FiCommand, FiChevronRight
+} from "react-icons/fi"
+import {
   pluginRegistry,
   usePlugins,
   type TesserinPluginAPI,
@@ -11,6 +14,12 @@ import {
 import { useNotes } from "@/lib/notes-store"
 import { getSetting, setSetting } from "@/lib/storage-client"
 import { BUILT_IN_PLUGINS } from "@/lib/builtin-plugins"
+import {
+  getRandomTip,
+  getContextualTip,
+  formatShortcut,
+  type TesserinTip,
+} from "@/lib/tips"
 
 /**
  * PluginProvider
@@ -156,14 +165,60 @@ export function PluginProvider({ children, onNotice, onNavigateTab }: PluginProv
  * - Right-aligned widgets (e.g. word count, cursor position)
  */
 
-export function StatusBar() {
+interface StatusBarProps {
+  /** Currently active tab for context-aware tips */
+  activeTab?: string
+  /** Callback when user clicks an actionable tip */
+  onTipAction?: (action: string) => void
+}
+
+export function StatusBar({ activeTab, onTipAction }: StatusBarProps = {}) {
   const { statusBarWidgets } = usePlugins()
+  const [currentTip, setCurrentTip] = useState<TesserinTip | null>(null)
+  const [tipFading, setTipFading] = useState(false)
+  const shownTips = useRef(new Set<string>())
+  const tipTimerRef = useRef<ReturnType<typeof setInterval>>()
 
   const leftWidgets = statusBarWidgets.filter((w) => (w.align ?? "left") === "left")
   const centerWidgets = statusBarWidgets.filter((w) => w.align === "center")
   const rightWidgets = statusBarWidgets.filter((w) => w.align === "right")
 
-  if (statusBarWidgets.length === 0) return null
+  // Rotate tips every 45 seconds
+  useEffect(() => {
+    const showNextTip = () => {
+      setTipFading(true)
+      setTimeout(() => {
+        // 30% chance to show a contextual tip based on active tab
+        const contextual = activeTab && Math.random() < 0.3
+          ? getContextualTip(activeTab)
+          : null
+        const tip = contextual || getRandomTip(shownTips.current)
+        shownTips.current.add(tip.id)
+        // Reset cycle when we've shown most tips
+        if (shownTips.current.size > 25) shownTips.current.clear()
+        setCurrentTip(tip)
+        setTipFading(false)
+      }, 300)
+    }
+
+    // Show first tip after 5s
+    const initial = setTimeout(showNextTip, 5000)
+    // Then rotate every 45s
+    tipTimerRef.current = setInterval(showNextTip, 45000)
+
+    return () => {
+      clearTimeout(initial)
+      clearInterval(tipTimerRef.current)
+    }
+  }, [activeTab])
+
+  const tipIcon = currentTip?.icon === "zap" ? FiZap
+    : currentTip?.icon === "sparkle" ? FiStar
+    : currentTip?.icon === "rocket" ? FiCpu
+    : currentTip?.icon === "brain" ? FiStar
+    : FiCommand
+
+  const TipIcon = tipIcon
 
   return (
     <div
@@ -174,22 +229,69 @@ export function StatusBar() {
         minHeight: 28,
       }}
     >
-      {/* Left */}
-      <div className="flex items-center gap-3 flex-1">
+      {/* Left: plugin widgets */}
+      <div className="flex items-center gap-3 shrink-0">
         {leftWidgets.map((widget) => (
           <widget.component key={widget.id} />
         ))}
       </div>
 
-      {/* Center */}
-      <div className="flex items-center gap-3 flex-1 justify-center">
-        {centerWidgets.map((widget) => (
-          <widget.component key={widget.id} />
-        ))}
-      </div>
+      {/* Center: rotating tip */}
+      {currentTip && (
+        <div
+          className={`flex-1 flex items-center justify-center gap-2 min-w-0 transition-opacity duration-300 ${
+            tipFading ? "opacity-0" : "opacity-100"
+          }`}
+        >
+          <TipIcon
+            size={11}
+            style={{ color: "var(--accent-primary)", flexShrink: 0, opacity: 0.7 }}
+          />
+          <button
+            onClick={() => currentTip.action && onTipAction?.(currentTip.action)}
+            className="text-[11px] truncate max-w-[600px] text-left transition-colors"
+            style={{
+              color: "var(--text-tertiary)",
+              cursor: currentTip.action ? "pointer" : "default",
+              background: "none",
+              border: "none",
+              padding: 0,
+              font: "inherit",
+            }}
+            title={currentTip.text}
+          >
+            {currentTip.text}
+          </button>
+          {currentTip.shortcut && (
+            <span
+              className="text-[9px] px-1.5 py-0.5 rounded font-mono shrink-0"
+              style={{
+                backgroundColor: "rgba(250, 204, 21, 0.08)",
+                color: "var(--accent-primary)",
+                border: "1px solid rgba(250, 204, 21, 0.12)",
+              }}
+            >
+              {formatShortcut(currentTip.shortcut)}
+            </span>
+          )}
+          {currentTip.action && (
+            <FiChevronRight
+              size={10}
+              style={{ color: "var(--text-tertiary)", opacity: 0.4, flexShrink: 0 }}
+            />
+          )}
+        </div>
+      )}
+      {!currentTip && (
+        <div className="flex-1 flex items-center justify-center">
+          {centerWidgets.map((widget) => (
+            <widget.component key={widget.id} />
+          ))}
+        </div>
+      )}
 
-      {/* Right */}
-      <div className="flex items-center gap-3 flex-1 justify-end">
+      {/* Right: plugin widgets */}
+      <div className="flex items-center gap-3 shrink-0">
         {rightWidgets.map((widget) => (
           <widget.component key={widget.id} />
         ))}
