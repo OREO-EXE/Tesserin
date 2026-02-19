@@ -1,6 +1,6 @@
 {
   "name": "tesserin",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "private": true,
   "description": "Tesserin – AI-native productivity workspace with knowledge graphs, creative canvas, and local-first storage",
   "author": "Anvin <gooseinteandi@gmail.com>",
