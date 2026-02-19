@@ -11,7 +11,7 @@
     "build": "vite build",
     "electron:build": "tsc -p electron/tsconfig.json && electron-builder",
     "mcp": "tsc -p electron/tsconfig.json && node electron/dist/main.js --mcp",
-    "postinstall": "electron-rebuild -f -m .",
+    "postinstall": "electron-builder install-app-deps",
     "lint": "eslint ."
   },
   "build": {
