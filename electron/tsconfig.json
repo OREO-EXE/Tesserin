@@ -20,7 +20,8 @@
         "preload.ts",
         "database.ts",
         "ipc-handlers.ts",
-        "ai-service.ts"
+        "ai-service.ts",
+        "ppt-generator.ts"
     ],
     "exclude": [
         "dist"

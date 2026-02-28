@@ -112,6 +112,31 @@ const tesserinAPI = {
             ipcRenderer.invoke('ai:suggestLinks', content, existingTitles, model),
         checkConnection: () => ipcRenderer.invoke('ai:checkConnection'),
         listModels: () => ipcRenderer.invoke('ai:listModels'),
+        // OpenRouter cloud provider
+        openRouterStream: (messages: Array<{ role: string; content: string }>) => {
+            ipcRenderer.removeAllListeners('ai:openrouter:stream:chunk')
+            ipcRenderer.removeAllListeners('ai:openrouter:stream:done')
+            ipcRenderer.removeAllListeners('ai:openrouter:stream:error')
+
+            ipcRenderer.send('ai:openrouter:stream', messages)
+            return {
+                onChunk: (callback: (chunk: string) => void) => {
+                    ipcRenderer.on('ai:openrouter:stream:chunk', (_e, chunk: string) => callback(chunk))
+                },
+                onDone: (callback: () => void) => {
+                    ipcRenderer.on('ai:openrouter:stream:done', () => callback())
+                },
+                onError: (callback: (error: string) => void) => {
+                    ipcRenderer.on('ai:openrouter:stream:error', (_e, error: string) => callback(error))
+                },
+                cancel: () => {
+                    ipcRenderer.removeAllListeners('ai:openrouter:stream:chunk')
+                    ipcRenderer.removeAllListeners('ai:openrouter:stream:done')
+                    ipcRenderer.removeAllListeners('ai:openrouter:stream:error')
+                },
+            }
+        },
+        listOpenRouterModels: (apiKey?: string) => ipcRenderer.invoke('ai:openrouter:listModels', apiKey),
     },
 
     // ── Window Controls ───────────────────────────────────────────────
@@ -180,6 +205,12 @@ const tesserinAPI = {
     // ── Dialog ────────────────────────────────────────────────────────
     dialog: {
         openFolder: () => ipcRenderer.invoke('dialog:openFolder') as Promise<string | null>,
+    },
+
+    // ── PPT Generation ──────────────────────────────────────────────
+    ppt: {
+        generate: (specOrMarkdown: Record<string, unknown> | string, outputPath: string) =>
+            ipcRenderer.invoke('ppt:generate', specOrMarkdown, outputPath) as Promise<string>,
     },
 
     // ── API Keys & Server ─────────────────────────────────────────────

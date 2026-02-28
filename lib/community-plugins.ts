@@ -240,7 +240,7 @@ export const spacedRepetitionPlugin: TesserinPlugin = {
     description: "SM-2 flashcard system — generate flashcards from your notes and review them.",
     author: "Community",
     icon: React.createElement(FiRepeat, { size: 16 }),
-    permissions: ["vault:read", "ui:notify", "commands", "settings:read", "settings:write"],
+    permissions: ["vault:read", "ui:notify", "commands", "settings:read", "settings:write", "panels"],
   },
 
   activate(api: TesserinPluginAPI) {
@@ -414,7 +414,7 @@ export const citationPlugin: TesserinPlugin = {
     description: "Import BibTeX/DOI references and auto-format citations in your notes.",
     author: "Community",
     icon: React.createElement(FiBookmark, { size: 16 }),
-    permissions: ["ui:notify", "commands", "settings:read", "settings:write", "vault:read"],
+    permissions: ["ui:notify", "commands", "settings:read", "settings:write", "vault:read", "panels"],
   },
 
   activate(api: TesserinPluginAPI) {
@@ -893,7 +893,7 @@ export const voiceNotesPlugin: TesserinPlugin = {
     description: "Quick audio memos — record voice notes that create timestamped markdown entries.",
     author: "Community",
     icon: React.createElement(FiMic, { size: 16 }),
-    permissions: ["vault:read", "vault:write", "ui:notify", "commands"],
+    permissions: ["vault:read", "vault:write", "ui:notify", "commands", "panels"],
   },
 
   activate(api: TesserinPluginAPI) {

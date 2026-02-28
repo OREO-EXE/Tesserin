@@ -48,5 +48,13 @@ export declare function checkConnection(): Promise<{
  * List available Ollama models.
  */
 export declare function listModels(): Promise<string[]>;
+/**
+ * Streaming chat via OpenRouter (OpenAI-compatible SSE).
+ */
+export declare function chatStreamOpenRouter(messages: ChatMessage[], callbacks: StreamCallbacks): Promise<void>;
+/**
+ * List popular OpenRouter models (curated subset).
+ */
+export declare function listOpenRouterModels(apiKey?: string): Promise<string[]>;
 export {};
 //# sourceMappingURL=ai-service.d.ts.map

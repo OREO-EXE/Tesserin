@@ -253,6 +253,22 @@ function registerIpcHandlers() {
     electron_1.ipcMain.handle('ai:listModels', async () => {
         return ai.listModels();
     });
+    // ── OpenRouter (cloud AI) ─────────────────────────────────────
+    electron_1.ipcMain.on('ai:openrouter:stream', async (event, messages) => {
+        try {
+            await ai.chatStreamOpenRouter(messages, {
+                onChunk: (chunk) => event.sender.send('ai:openrouter:stream:chunk', chunk),
+                onDone: () => event.sender.send('ai:openrouter:stream:done'),
+                onError: (error) => event.sender.send('ai:openrouter:stream:error', error),
+            });
+        }
+        catch (err) {
+            event.sender.send('ai:openrouter:stream:error', String(err));
+        }
+    });
+    electron_1.ipcMain.handle('ai:openrouter:listModels', async (_e, apiKey) => {
+        return ai.listOpenRouterModels(apiKey);
+    });
     // ── MCP (Model Context Protocol) ──────────────────────────────
     electron_1.ipcMain.handle('mcp:connect', async (_e, config) => {
         await mcp_client_1.mcpClientManager.connect(config);
@@ -464,6 +480,22 @@ function registerIpcHandlers() {
     });
     electron_1.ipcMain.handle('api:server:status', () => {
         return (0, api_server_1.getApiServerStatus)();
+    });
+    // ── PPT Generation ───────────────────────────────────────────────
+    electron_1.ipcMain.handle('ppt:generate', async (_e, specOrMarkdown, outputPath) => {
+        const safePath = validatePath(outputPath, 'outputPath');
+        if (!safePath.endsWith('.pptx')) {
+            throw new Error('Output path must end in .pptx');
+        }
+        const pptLib = await Promise.resolve().then(() => __importStar(require('./ppt-generator')));
+        // Accept either a JSON DeckSpec object or a markdown string
+        if (typeof specOrMarkdown === 'string') {
+            return pptLib.generateFromMarkdownAndSave(specOrMarkdown, safePath);
+        }
+        if (specOrMarkdown && typeof specOrMarkdown === 'object') {
+            return pptLib.generateAndSavePptx(specOrMarkdown, safePath);
+        }
+        throw new Error('Invalid spec: expected a DeckSpec object or markdown string');
     });
 }
 //# sourceMappingURL=ipc-handlers.js.map

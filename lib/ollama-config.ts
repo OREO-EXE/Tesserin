@@ -6,7 +6,7 @@
  */
 
 export const OLLAMA_DEFAULT_ENDPOINT = "http://localhost:11434"
-export const OLLAMA_DEFAULT_MODEL = "llama3.2"
+export const OLLAMA_DEFAULT_MODEL = "deepseek-coder:6.7b"
 
 const SETTINGS_KEY = "tesserin:settings"
 

@@ -77,6 +77,9 @@ interface SettingsValues {
   "ai.streamResponses": string
   "ai.maxContextLength": string
   "ai.temperature": string
+  "ai.codeAgentProvider": string
+  "ai.openrouterApiKey": string
+  "ai.openrouterModel": string
 
   // MCP
   "mcp.serverEnabled": string
@@ -132,6 +135,9 @@ const DEFAULTS: SettingsValues = {
   "ai.streamResponses": "true",
   "ai.maxContextLength": "4096",
   "ai.temperature": "0.7",
+  "ai.codeAgentProvider": "ollama",
+  "ai.openrouterApiKey": "",
+  "ai.openrouterModel": "anthropic/claude-sonnet-4",
 
   "mcp.serverEnabled": "true",
   "mcp.serverPort": "3100",
@@ -402,14 +408,22 @@ export function SettingsPanel() {
   const [apiCopied, setApiCopied] = useState(false)
 
   // Load plugin enabled states from localStorage
+  // Core plugins default to true (enabled), others default to their current enabled state
+  const corePluginIds = useMemo(() => new Set(["com.tesserin.word-count", "com.tesserin.daily-quote", "com.tesserin.backlinks"]), [])
   useEffect(() => {
     const toggles: Record<string, boolean> = {}
     for (const p of registeredPlugins) {
       const key = `tesserin:plugin:${p.id}`
-      toggles[p.id] = localStorage.getItem(key) === "true"
+      const stored = localStorage.getItem(key)
+      if (stored !== null) {
+        toggles[p.id] = stored === "true"
+      } else {
+        // Default: core plugins = enabled, others = check if currently active
+        toggles[p.id] = corePluginIds.has(p.id) ? true : p.enabled
+      }
     }
     setPluginToggles(toggles)
-  }, [registeredPlugins])
+  }, [registeredPlugins, corePluginIds])
 
   // Load API keys and server status
   useEffect(() => {
@@ -445,6 +459,15 @@ export function SettingsPanel() {
     setSettings((prev) => ({ ...prev, [key]: value }))
     setDirty(true)
     setSaved(false)
+    if (key === "appearance.theme") {
+      setTheme(value)
+    }
+  }, [setTheme])
+
+  /** Update and immediately persist a setting (for toggles that should take effect instantly) */
+  const updateImmediate = useCallback((key: SettingKey, value: string) => {
+    setSettings((prev) => ({ ...prev, [key]: value }))
+    setSetting(key, value).catch(() => {})
     if (key === "appearance.theme") {
       setTheme(value)
     }
@@ -810,6 +833,40 @@ export function SettingsPanel() {
           </div>
         </div>
       )}
+
+      {/* ── OpenRouter / Cloud Agent ───────────────────────────────── */}
+      <div className="mt-6 pt-4" style={{ borderTop: "1px solid var(--border-dark)" }}>
+        <div className="text-[11px] font-bold mb-3 flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
+          <span style={{ color: "var(--accent-primary)" }}>☁</span> OpenRouter (Cloud Agent)
+        </div>
+
+        <SettingRow label="Code Agent provider" description="Choose which AI provider powers the code builder agent.">
+          <SelectInput
+            value={settings["ai.codeAgentProvider"]}
+            onChange={(v) => update("ai.codeAgentProvider", v)}
+            options={[
+              { value: "ollama", label: "Ollama (local)" },
+              { value: "openrouter", label: "OpenRouter (cloud)" },
+            ]}
+          />
+        </SettingRow>
+
+        <SettingRow label="OpenRouter API key" description="Get your key from openrouter.ai/keys">
+          <TextInput
+            value={settings["ai.openrouterApiKey"]}
+            onChange={(v) => update("ai.openrouterApiKey", v)}
+            placeholder="sk-or-v1-..."
+          />
+        </SettingRow>
+
+        <SettingRow label="OpenRouter model" description="Model ID for code agent (e.g. anthropic/claude-sonnet-4).">
+          <TextInput
+            value={settings["ai.openrouterModel"]}
+            onChange={(v) => update("ai.openrouterModel", v)}
+            placeholder="anthropic/claude-sonnet-4"
+          />
+        </SettingRow>
+      </div>
     </div>
   )
 
@@ -1764,8 +1821,8 @@ export function SettingsPanel() {
         <SectionHeading title="Plugins" icon={<FiPackage size={16} />} />
 
         <div className="text-[11px] mb-5" style={{ color: "var(--text-tertiary)" }}>
-          Manage workspace views, extensions, and community plugins. Core plugins
-          are always active. Toggle others on or off as needed.
+          Manage workspace views, extensions, and community plugins. Toggle any
+          plugin on or off as needed. Changes take effect immediately.
         </div>
 
         {/* Core plugins */}
@@ -1773,7 +1830,7 @@ export function SettingsPanel() {
           <div className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-tertiary)" }}>
             CORE PLUGINS
           </div>
-          {corePlugins.map((p) => renderPluginRow(p, false))}
+          {corePlugins.map((p) => renderPluginRow(p, true))}
         </div>
 
         {/* Workspace plugins */}
@@ -1851,7 +1908,7 @@ export function SettingsPanel() {
         <div className="flex items-center gap-2 mb-5">
           <button
             onClick={() => {
-              FEATURE_ITEMS.forEach(f => update(f.key, "true"))
+              FEATURE_ITEMS.forEach(f => updateImmediate(f.key, "true"))
             }}
             className="skeuo-btn px-3 py-1.5 rounded-xl text-[10px] font-semibold flex items-center gap-1.5 hover:brightness-110 active:scale-95 transition-all"
             style={{ color: "var(--accent-primary)" }}
@@ -1860,7 +1917,7 @@ export function SettingsPanel() {
           </button>
           <button
             onClick={() => {
-              FEATURE_ITEMS.forEach(f => update(f.key, "false"))
+              FEATURE_ITEMS.forEach(f => updateImmediate(f.key, "false"))
             }}
             className="skeuo-btn px-3 py-1.5 rounded-xl text-[10px] font-semibold flex items-center gap-1.5 hover:brightness-110 active:scale-95 transition-all"
             style={{ color: "var(--text-tertiary)" }}
@@ -1897,7 +1954,7 @@ export function SettingsPanel() {
               <div className="ml-3">
                 <Toggle
                   checked={settings[feature.key] === "true"}
-                  onChange={(v) => update(feature.key, String(v))}
+                  onChange={(v) => updateImmediate(feature.key, String(v))}
                 />
               </div>
             </div>

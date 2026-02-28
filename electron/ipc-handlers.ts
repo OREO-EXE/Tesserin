@@ -234,6 +234,23 @@ export function registerIpcHandlers(): void {
         return ai.listModels()
     })
 
+    // ── OpenRouter (cloud AI) ─────────────────────────────────────
+    ipcMain.on('ai:openrouter:stream', async (event, messages) => {
+        try {
+            await ai.chatStreamOpenRouter(messages, {
+                onChunk: (chunk: string) => event.sender.send('ai:openrouter:stream:chunk', chunk),
+                onDone: () => event.sender.send('ai:openrouter:stream:done'),
+                onError: (error: string) => event.sender.send('ai:openrouter:stream:error', error),
+            })
+        } catch (err) {
+            event.sender.send('ai:openrouter:stream:error', String(err))
+        }
+    })
+
+    ipcMain.handle('ai:openrouter:listModels', async (_e, apiKey?: string) => {
+        return ai.listOpenRouterModels(apiKey)
+    })
+
     // ── MCP (Model Context Protocol) ──────────────────────────────
     ipcMain.handle('mcp:connect', async (_e, config: McpServerConfig) => {
         await mcpClientManager.connect(config)
@@ -467,5 +484,23 @@ export function registerIpcHandlers(): void {
 
     ipcMain.handle('api:server:status', () => {
         return getApiServerStatus()
+    })
+
+    // ── PPT Generation ───────────────────────────────────────────────
+    ipcMain.handle('ppt:generate', async (_e, specOrMarkdown: unknown, outputPath: string) => {
+        const safePath = validatePath(outputPath, 'outputPath')
+        if (!safePath.endsWith('.pptx')) {
+            throw new Error('Output path must end in .pptx')
+        }
+        const pptLib = await import('./ppt-generator')
+
+        // Accept either a JSON DeckSpec object or a markdown string
+        if (typeof specOrMarkdown === 'string') {
+            return pptLib.generateFromMarkdownAndSave(specOrMarkdown, safePath)
+        }
+        if (specOrMarkdown && typeof specOrMarkdown === 'object') {
+            return pptLib.generateAndSavePptx(specOrMarkdown as any, safePath)
+        }
+        throw new Error('Invalid spec: expected a DeckSpec object or markdown string')
     })
 }

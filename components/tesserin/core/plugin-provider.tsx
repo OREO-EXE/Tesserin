@@ -155,10 +155,15 @@ export function PluginProvider({ children, onNotice, onNavigateTab }: PluginProv
     initialised.current = true
 
     async function init() {
-      // Activate core plugins (always on)
+      // Activate core plugins — respect user's toggle preference (default: enabled)
       for (const plugin of BUILT_IN_PLUGINS) {
         pluginRegistry.register(plugin)
-        await pluginRegistry.activate(plugin.manifest.id, createAPI)
+        const key = `tesserin:plugin:${plugin.manifest.id}`
+        const stored = localStorage.getItem(key)
+        // Default to enabled if no preference set
+        if (stored !== "false") {
+          await pluginRegistry.activate(plugin.manifest.id, createAPI)
+        }
       }
 
       // Register workspace plugins — activate only if user has enabled them

@@ -89,6 +89,16 @@ interface TesserinAI {
     suggestLinks(content: string, titles: string[], model?: string): Promise<string[]>
     checkConnection(): Promise<{ connected: boolean; version?: string }>
     listModels(): Promise<string[]>
+
+    // OpenRouter cloud provider
+    openRouterStream(
+        messages: Array<{ role: string; content: string }>
+    ): {
+        onChunk: (callback: (chunk: string) => void) => void
+        onDone: (callback: () => void) => void
+        onError: (callback: (error: string) => void) => void
+    }
+    listOpenRouterModels(apiKey?: string): Promise<string[]>
 }
 
 interface TesserinWindow {
@@ -203,6 +213,10 @@ interface TesserinApiManager {
     server: TesserinApiServer
 }
 
+interface TesserinPPT {
+    generate(specOrMarkdown: Record<string, unknown> | string, outputPath: string): Promise<string>
+}
+
 interface TesserinAPI {
     db: TesserinDB
     ai: TesserinAI
@@ -213,6 +227,7 @@ interface TesserinAPI {
     shell?: TesserinShell
     dialog?: TesserinDialog
     api?: TesserinApiManager
+    ppt?: TesserinPPT
 }
 
 declare global {

@@ -8,7 +8,7 @@
 import { getSetting } from './database'
 
 const DEFAULT_ENDPOINT = 'http://localhost:11434'
-const DEFAULT_MODEL = 'llama3.2'
+const DEFAULT_MODEL = 'deepseek-coder:6.7b'
 
 function getEndpoint(): string {
   try {
@@ -230,6 +230,122 @@ export async function listModels(): Promise<string[]> {
         if (!response.ok) return []
         const data = await response.json() as { models?: Array<{ name: string }> }
         return (data.models || []).map((m: { name: string }) => m.name)
+    } catch {
+        return []
+    }
+}
+
+// ── OpenRouter ─────────────────────────────────────────────────────────────
+
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
+
+function getOpenRouterKey(): string {
+    try {
+        const key = getSetting('ai.openrouterApiKey')
+        if (key && key.trim()) return key.trim()
+    } catch {}
+    return ''
+}
+
+function getOpenRouterModel(): string {
+    try {
+        const model = getSetting('ai.openrouterModel')
+        if (model && model.trim()) return model.trim()
+    } catch {}
+    return 'anthropic/claude-sonnet-4'
+}
+
+/**
+ * Streaming chat via OpenRouter (OpenAI-compatible SSE).
+ */
+export async function chatStreamOpenRouter(
+    messages: ChatMessage[],
+    callbacks: StreamCallbacks
+): Promise<void> {
+    const apiKey = getOpenRouterKey()
+    if (!apiKey) {
+        callbacks.onError('OpenRouter API key not configured. Set it in Settings → AI.')
+        return
+    }
+
+    const model = getOpenRouterModel()
+
+    const response = await fetch(OPENROUTER_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            'HTTP-Referer': 'https://tesserin.app',
+            'X-Title': 'Tesserin',
+        },
+        body: JSON.stringify({
+            model,
+            messages,
+            stream: true,
+        }),
+    })
+
+    if (!response.ok) {
+        const body = await response.text().catch(() => '')
+        callbacks.onError(`OpenRouter error ${response.status}: ${body.slice(0, 300)}`)
+        return
+    }
+
+    const reader = response.body?.getReader()
+    if (!reader) {
+        callbacks.onError('No response body from OpenRouter')
+        return
+    }
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || '' // keep incomplete line in buffer
+
+            for (const line of lines) {
+                const trimmed = line.trim()
+                if (!trimmed || !trimmed.startsWith('data: ')) continue
+                const data = trimmed.slice(6)
+                if (data === '[DONE]') {
+                    callbacks.onDone()
+                    return
+                }
+                try {
+                    const json = JSON.parse(data)
+                    const delta = json.choices?.[0]?.delta?.content
+                    if (delta) callbacks.onChunk(delta)
+                } catch {
+                    // skip malformed SSE lines
+                }
+            }
+        }
+        callbacks.onDone()
+    } catch (err) {
+        callbacks.onError(String(err))
+    }
+}
+
+/**
+ * List popular OpenRouter models (curated subset).
+ */
+export async function listOpenRouterModels(apiKey?: string): Promise<string[]> {
+    const key = apiKey || getOpenRouterKey()
+    if (!key) return []
+    try {
+        const resp = await fetch('https://openrouter.ai/api/v1/models', {
+            headers: { 'Authorization': `Bearer ${key}` },
+            signal: AbortSignal.timeout(8000),
+        })
+        if (!resp.ok) return []
+        const data = await resp.json() as { data?: Array<{ id: string }> }
+        return (data.data || []).map(m => m.id).slice(0, 100)
     } catch {
         return []
     }

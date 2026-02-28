@@ -95,6 +95,30 @@ const tesserinAPI = {
         suggestLinks: (content, existingTitles, model) => electron_1.ipcRenderer.invoke('ai:suggestLinks', content, existingTitles, model),
         checkConnection: () => electron_1.ipcRenderer.invoke('ai:checkConnection'),
         listModels: () => electron_1.ipcRenderer.invoke('ai:listModels'),
+        // OpenRouter cloud provider
+        openRouterStream: (messages) => {
+            electron_1.ipcRenderer.removeAllListeners('ai:openrouter:stream:chunk');
+            electron_1.ipcRenderer.removeAllListeners('ai:openrouter:stream:done');
+            electron_1.ipcRenderer.removeAllListeners('ai:openrouter:stream:error');
+            electron_1.ipcRenderer.send('ai:openrouter:stream', messages);
+            return {
+                onChunk: (callback) => {
+                    electron_1.ipcRenderer.on('ai:openrouter:stream:chunk', (_e, chunk) => callback(chunk));
+                },
+                onDone: (callback) => {
+                    electron_1.ipcRenderer.on('ai:openrouter:stream:done', () => callback());
+                },
+                onError: (callback) => {
+                    electron_1.ipcRenderer.on('ai:openrouter:stream:error', (_e, error) => callback(error));
+                },
+                cancel: () => {
+                    electron_1.ipcRenderer.removeAllListeners('ai:openrouter:stream:chunk');
+                    electron_1.ipcRenderer.removeAllListeners('ai:openrouter:stream:done');
+                    electron_1.ipcRenderer.removeAllListeners('ai:openrouter:stream:error');
+                },
+            };
+        },
+        listOpenRouterModels: (apiKey) => electron_1.ipcRenderer.invoke('ai:openrouter:listModels', apiKey),
     },
     // ── Window Controls ───────────────────────────────────────────────
     window: {
@@ -147,6 +171,10 @@ const tesserinAPI = {
     // ── Dialog ────────────────────────────────────────────────────────
     dialog: {
         openFolder: () => electron_1.ipcRenderer.invoke('dialog:openFolder'),
+    },
+    // ── PPT Generation ──────────────────────────────────────────────
+    ppt: {
+        generate: (specOrMarkdown, outputPath) => electron_1.ipcRenderer.invoke('ppt:generate', specOrMarkdown, outputPath),
     },
     // ── API Keys & Server ─────────────────────────────────────────────
     api: {

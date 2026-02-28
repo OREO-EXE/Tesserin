@@ -1,6 +1,6 @@
 {
   "name": "tesserin",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "description": "Tesserin – AI-native productivity workspace with knowledge graphs, creative canvas, and local-first storage",
   "author": "Anvin <gooseinteandi@gmail.com>",
@@ -38,13 +38,18 @@
     "icon": "build/icons",
     "mac": {
       "category": "public.app-category.productivity",
-      "target": "dmg",
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ],
       "icon": "build/icon.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false
     },
     "win": {
-      "target": "nsis",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
       "icon": "build/icon.ico"
     },
     "linux": {
@@ -115,6 +120,7 @@
     "input-otp": "1.4.2",
     "mermaid": "^11.12.2",
     "node-pty": "^1.1.0",
+    "pptxgenjs": "^4.0.1",
     "react": "19.2.4",
     "react-day-picker": "^9.0.0",
     "react-dom": "19.2.4",

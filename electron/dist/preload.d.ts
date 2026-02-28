@@ -103,6 +103,16 @@ declare const tesserinAPI: {
         suggestLinks: (content: string, existingTitles: string[], model?: string) => Promise<any>;
         checkConnection: () => Promise<any>;
         listModels: () => Promise<any>;
+        openRouterStream: (messages: Array<{
+            role: string;
+            content: string;
+        }>) => {
+            onChunk: (callback: (chunk: string) => void) => void;
+            onDone: (callback: () => void) => void;
+            onError: (callback: (error: string) => void) => void;
+            cancel: () => void;
+        };
+        listOpenRouterModels: (apiKey?: string) => Promise<any>;
     };
     window: {
         minimize: () => void;
@@ -164,6 +174,9 @@ declare const tesserinAPI: {
     };
     dialog: {
         openFolder: () => Promise<string | null>;
+    };
+    ppt: {
+        generate: (specOrMarkdown: Record<string, unknown> | string, outputPath: string) => Promise<string>;
     };
     api: {
         keys: {
