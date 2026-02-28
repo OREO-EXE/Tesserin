@@ -155,6 +155,113 @@ export async function getNoteByTitle(title: string): Promise<StorageNote | undef
 }
 
 /* ================================================================== */
+/*  TAGS                                                               */
+/* ================================================================== */
+
+export interface StorageTag {
+    id: string
+    name: string
+    color: string
+}
+
+const TAGS_LS_KEY = 'tesserin:tags'
+const NOTE_TAGS_LS_KEY = 'tesserin:note_tags'
+
+export async function listTags(): Promise<StorageTag[]> {
+    if (isElectron()) return window.tesserin!.db.tags.list()
+    return lsGet<StorageTag[]>(TAGS_LS_KEY, [])
+}
+
+export async function createTag(name: string, color?: string): Promise<StorageTag> {
+    if (isElectron()) return window.tesserin!.db.tags.create(name, color)
+    const tag: StorageTag = { id: crypto.randomUUID(), name, color: color || '#6366f1' }
+    const tags = lsGet<StorageTag[]>(TAGS_LS_KEY, [])
+    tags.push(tag)
+    lsSet(TAGS_LS_KEY, tags)
+    return tag
+}
+
+export async function deleteTag(id: string): Promise<void> {
+    if (isElectron()) return window.tesserin!.db.tags.delete(id)
+    lsSet(TAGS_LS_KEY, lsGet<StorageTag[]>(TAGS_LS_KEY, []).filter(t => t.id !== id))
+    // Also remove from note_tags
+    const noteTags = lsGet<{ note_id: string; tag_id: string }[]>(NOTE_TAGS_LS_KEY, [])
+    lsSet(NOTE_TAGS_LS_KEY, noteTags.filter(nt => nt.tag_id !== id))
+}
+
+export async function addTagToNote(noteId: string, tagId: string): Promise<void> {
+    if (isElectron()) return window.tesserin!.db.tags.addToNote(noteId, tagId)
+    const noteTags = lsGet<{ note_id: string; tag_id: string }[]>(NOTE_TAGS_LS_KEY, [])
+    if (!noteTags.some(nt => nt.note_id === noteId && nt.tag_id === tagId)) {
+        noteTags.push({ note_id: noteId, tag_id: tagId })
+        lsSet(NOTE_TAGS_LS_KEY, noteTags)
+    }
+}
+
+export async function removeTagFromNote(noteId: string, tagId: string): Promise<void> {
+    if (isElectron()) return window.tesserin!.db.tags.removeFromNote(noteId, tagId)
+    const noteTags = lsGet<{ note_id: string; tag_id: string }[]>(NOTE_TAGS_LS_KEY, [])
+    lsSet(NOTE_TAGS_LS_KEY, noteTags.filter(nt => !(nt.note_id === noteId && nt.tag_id === tagId)))
+}
+
+export async function getTagsForNote(noteId: string): Promise<StorageTag[]> {
+    if (isElectron()) return window.tesserin!.db.tags.getForNote(noteId)
+    const noteTags = lsGet<{ note_id: string; tag_id: string }[]>(NOTE_TAGS_LS_KEY, [])
+    const tagIds = noteTags.filter(nt => nt.note_id === noteId).map(nt => nt.tag_id)
+    const allTags = lsGet<StorageTag[]>(TAGS_LS_KEY, [])
+    return allTags.filter(t => tagIds.includes(t.id))
+}
+
+/* ================================================================== */
+/*  FOLDERS                                                            */
+/* ================================================================== */
+
+export interface StorageFolder {
+    id: string
+    name: string
+    parent_id: string | null
+    sort_order: number
+    created_at: string
+}
+
+const FOLDERS_LS_KEY = 'tesserin:folders'
+
+export async function listFolders(): Promise<StorageFolder[]> {
+    if (isElectron()) return window.tesserin!.db.folders.list()
+    return lsGet<StorageFolder[]>(FOLDERS_LS_KEY, [])
+}
+
+export async function createFolder(name: string, parentId?: string): Promise<StorageFolder> {
+    if (isElectron()) return window.tesserin!.db.folders.create(name, parentId)
+    const folder: StorageFolder = {
+        id: crypto.randomUUID(),
+        name,
+        parent_id: parentId || null,
+        sort_order: 0,
+        created_at: new Date().toISOString(),
+    }
+    const folders = lsGet<StorageFolder[]>(FOLDERS_LS_KEY, [])
+    folders.push(folder)
+    lsSet(FOLDERS_LS_KEY, folders)
+    return folder
+}
+
+export async function renameFolder(id: string, name: string): Promise<void> {
+    if (isElectron()) return window.tesserin!.db.folders.rename(id, name)
+    const folders = lsGet<StorageFolder[]>(FOLDERS_LS_KEY, [])
+    const idx = folders.findIndex(f => f.id === id)
+    if (idx !== -1) {
+        folders[idx].name = name
+        lsSet(FOLDERS_LS_KEY, folders)
+    }
+}
+
+export async function deleteFolder(id: string): Promise<void> {
+    if (isElectron()) return window.tesserin!.db.folders.delete(id)
+    lsSet(FOLDERS_LS_KEY, lsGet<StorageFolder[]>(FOLDERS_LS_KEY, []).filter(f => f.id !== id))
+}
+
+/* ================================================================== */
 /*  TASKS                                                              */
 /* ================================================================== */
 

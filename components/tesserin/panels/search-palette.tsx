@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
   FiSearch, FiFileText, FiPlus, FiCommand, FiHash, FiCalendar,
-  FiLayout, FiX, FiCompass, FiCode, FiGrid, FiSettings,
+  FiLayout, FiX, FiCompass, FiGrid, FiSettings,
   FiCpu, FiLink2, FiClock, FiColumns, FiZap, FiStar,
 } from "react-icons/fi"
 import { HiOutlineSparkles } from "react-icons/hi2"
@@ -49,7 +49,6 @@ const TAB_ITEMS = [
   { id: "notes", icon: <FiFileText size={14} />, label: "Notes", subtitle: "Open note editor" },
   { id: "canvas", icon: <FiCompass size={14} />, label: "Canvas", subtitle: "Open whiteboard" },
   { id: "graph", icon: <FiCpu size={14} />, label: "Graph", subtitle: "Knowledge graph view" },
-  { id: "code", icon: <FiCode size={14} />, label: "Code", subtitle: "Code editor" },
   { id: "sam", icon: <HiOutlineSparkles size={14} />, label: "SAM", subtitle: "AI assistant" },
   { id: "settings", icon: <FiSettings size={14} />, label: "Settings", subtitle: "App preferences" },
 ]
@@ -534,6 +533,7 @@ export function SearchPalette({ isOpen, onClose, onSelectNote, onNavigateTab, on
             }}
             onKeyDown={handleKeyDown}
             aria-label="Search"
+            
           />
           <div className="flex items-center gap-1.5">
             {query && (

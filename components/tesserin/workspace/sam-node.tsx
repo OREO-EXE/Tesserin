@@ -30,6 +30,8 @@ import {
   FiList,
   FiFeather,
   FiArrowDownCircle,
+  FiSearch,
+  FiHash,
 } from "react-icons/fi"
 import {
   HiOutlineSparkles,
@@ -38,6 +40,7 @@ import {
 import { useNotes } from "@/lib/notes-store"
 import { renderMarkdown } from "@/lib/markdown-renderer"
 import { getOllamaEndpoint } from "@/lib/ollama-config"
+import { FuzzySearchEngine, type SearchableItem } from "@/lib/fuzzy-search"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -89,6 +92,10 @@ CAPABILITIES
 - **Outline** — create a structured outline for a topic
 - **Brainstorm** — generate ideas around a theme
 - **Rewrite** — improve or rewrite selected note content
+- **Ask Vault** — answer questions using relevant notes from the vault (RAG). When vault context is provided below, cite the note titles in your answer using [[Note Title]] wiki-links.
+- **Smart Search** — find and relate notes across the vault on a topic
+
+When vault context is provided under RELEVANT VAULT CONTEXT, use it to ground your answers. Cite specific notes with [[Title]] links. If the vault context doesn't contain enough information, say so honestly rather than hallucinating.
 
 When summarizing, give only the summary — no "Here is the summary:" prefix.
 When suggesting tags, return a bulleted list with one-line explanations.
@@ -138,6 +145,42 @@ function stripAIFluff(content: string): string {
   }
 
   return text.trim()
+}
+
+/* ------------------------------------------------------------------ */
+/*  Vault RAG — search notes and build context for AI                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Search the vault using fuzzy search and return relevant note excerpts
+ * formatted for injection into the AI system prompt.
+ */
+function searchVaultContext(
+  notes: Array<{ id: string; title: string; content: string }>,
+  query: string,
+  maxNotes = 5,
+  maxCharsPerNote = 600,
+): string {
+  if (notes.length === 0 || !query.trim()) return ""
+
+  const searchable: SearchableItem[] = notes.map((n) => ({
+    id: n.id,
+    title: n.title,
+    content: n.content,
+  }))
+
+  const engine = new FuzzySearchEngine(searchable)
+  const results = engine.search(query)
+
+  if (results.length === 0) return ""
+
+  const top = results.slice(0, maxNotes)
+  const lines = top.map((r) => {
+    const excerpt = r.item.content.slice(0, maxCharsPerNote).trim()
+    return `### [[${r.item.title}]]\n${excerpt}${r.item.content.length > maxCharsPerNote ? "…" : ""}`
+  })
+
+  return `\n\nRELEVANT VAULT CONTEXT (${top.length} notes found for "${query}"):\n\n${lines.join("\n\n")}`
 }
 
 /* ------------------------------------------------------------------ */
@@ -208,6 +251,20 @@ const QUICK_ACTIONS: QuickAction[] = [
     icon: <FiRefreshCw size={13} />,
     description: "Improve current note writing",
     requiresNote: true,
+  },
+  {
+    id: "ask-vault",
+    label: "Ask Vault",
+    icon: <FiSearch size={13} />,
+    description: "Ask a question answered from your notes",
+    requiresNote: false,
+  },
+  {
+    id: "smart-search",
+    label: "Search",
+    icon: <FiHash size={13} />,
+    description: "Find and relate notes on a topic",
+    requiresNote: false,
   },
 ]
 
@@ -541,6 +598,12 @@ export function SAMNode() {
         systemPrompt += `\n\nVAULT (${notes.length} notes): ${notes.slice(0, 60).map((n) => n.title).join(", ")}`
       }
 
+      // Vault RAG — search for relevant notes based on the user's query
+      const vaultContext = searchVaultContext(notes, trimmed, 5, 600)
+      if (vaultContext) {
+        systemPrompt += vaultContext
+      }
+
       const apiMessages = [
         { role: "system", content: systemPrompt },
         ...allMsgs.filter((m) => m.role !== "system").map((m) => ({ role: m.role, content: m.content })),
@@ -698,6 +761,12 @@ export function SAMNode() {
           break
         case "rewrite":
           sendMessage(`Rewrite my note "${t}" with better clarity, structure, and prose. Keep the core ideas.`)
+          break
+        case "ask-vault":
+          sendMessage("Search my vault and answer a question based on my notes. Ask me what I want to know.")
+          break
+        case "smart-search":
+          sendMessage("Search across my vault for notes related to a topic. Ask me the topic and then show which notes are relevant, how they connect, and what gaps exist in my knowledge.")
           break
       }
     },

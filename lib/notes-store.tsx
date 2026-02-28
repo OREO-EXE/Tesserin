@@ -13,6 +13,20 @@ export interface Note {
   content: string
   createdAt: string
   updatedAt: string
+  tags: NoteTag[]
+  folderId: string | null
+}
+
+export interface NoteTag {
+  id: string
+  name: string
+  color: string
+}
+
+export interface NoteFolder {
+  id: string
+  name: string
+  parentId: string | null
 }
 
 export interface GraphNode {
@@ -92,14 +106,24 @@ export function computeGraph(notes: Note[]): NoteGraph {
 interface NotesContextValue {
   notes: Note[]
   graph: NoteGraph
+  tags: NoteTag[]
+  folders: NoteFolder[]
   selectedNoteId: string | null
   selectNote: (id: string | null) => void
-  addNote: (title?: string) => string
+  addNote: (title?: string, folderId?: string) => string
   updateNote: (id: string, updates: Partial<Pick<Note, "title" | "content">>) => void
   deleteNote: (id: string) => void
   getNoteByTitle: (title: string) => Note | undefined
   navigateToWikiLink: (title: string) => void
   searchNotes: (query: string) => Promise<Note[]>
+  moveNoteToFolder: (noteId: string, folderId: string | null) => void
+  addTagToNote: (noteId: string, tag: NoteTag) => void
+  removeTagFromNote: (noteId: string, tagId: string) => void
+  createTag: (name: string, color?: string) => Promise<NoteTag>
+  deleteTag: (id: string) => void
+  createFolder: (name: string, parentId?: string) => Promise<NoteFolder>
+  renameFolder: (id: string, name: string) => void
+  deleteFolder: (id: string) => void
   isLoading: boolean
 }
 
@@ -142,21 +166,52 @@ interface NotesProviderProps {
  */
 export function NotesProvider({ children }: NotesProviderProps) {
   const [notes, setNotes] = useState<Note[]>(SEED_NOTES)
+  const [tags, setTags] = useState<NoteTag[]>([])
+  const [folders, setFolders] = useState<NoteFolder[]>([])
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Load notes from SQLite on mount (Electron only)
+  // Load notes, tags, folders from SQLite on mount (Electron only)
   useEffect(() => {
     async function loadFromDB() {
       try {
-        const dbNotes = await storage.listNotes()
+        // Load tags and folders in parallel
+        const [dbNotes, dbTags, dbFolders] = await Promise.all([
+          storage.listNotes(),
+          storage.listTags(),
+          storage.listFolders(),
+        ])
+
+        if (dbTags && dbTags.length > 0) {
+          setTags(dbTags.map((t: any) => ({ id: t.id, name: t.name, color: t.color })))
+        }
+
+        if (dbFolders && dbFolders.length > 0) {
+          setFolders(dbFolders.map((f: any) => ({ id: f.id, name: f.name, parentId: f.parent_id || null })))
+        }
+
         if (dbNotes && dbNotes.length > 0) {
-          const mapped: Note[] = dbNotes.map((n) => ({
+          // Load tags for each note
+          const noteTagsMap = new Map<string, NoteTag[]>()
+          await Promise.all(
+            dbNotes.map(async (n: any) => {
+              try {
+                const noteTags = await storage.getTagsForNote(n.id)
+                if (noteTags && noteTags.length > 0) {
+                  noteTagsMap.set(n.id, noteTags.map((t: any) => ({ id: t.id, name: t.name, color: t.color })))
+                }
+              } catch { /* ignore */ }
+            })
+          )
+
+          const mapped: Note[] = dbNotes.map((n: any) => ({
             id: n.id,
             title: n.title,
             content: n.content,
             createdAt: n.created_at,
             updatedAt: n.updated_at,
+            tags: noteTagsMap.get(n.id) || [],
+            folderId: n.folder_id || null,
           }))
           setNotes(mapped)
         }
@@ -174,7 +229,7 @@ export function NotesProvider({ children }: NotesProviderProps) {
     setSelectedNoteId(id)
   }, [])
 
-  const addNote = useCallback((title?: string): string => {
+  const addNote = useCallback((title?: string, folderId?: string): string => {
     const id = uid()
     const timestamp = new Date().toISOString()
     const noteTitle = title || "Untitled Note"
@@ -185,12 +240,14 @@ export function NotesProvider({ children }: NotesProviderProps) {
       content,
       createdAt: timestamp,
       updatedAt: timestamp,
+      tags: [],
+      folderId: folderId || null,
     }
     setNotes((prev) => [newNote, ...prev])
     setSelectedNoteId(id)
 
     // Persist to SQLite — let the DB create the row, then update local ID if needed
-    storage.createNote({ title: noteTitle, content }).then((dbNote) => {
+    storage.createNote({ title: noteTitle, content, folderId: folderId || undefined }).then((dbNote) => {
       if (dbNote?.id && dbNote.id !== id) {
         // Replace the temp ID with the real DB-assigned ID
         setNotes((prev) =>
@@ -258,6 +315,8 @@ export function NotesProvider({ children }: NotesProviderProps) {
           content,
           createdAt: timestamp,
           updatedAt: timestamp,
+          tags: [],
+          folderId: null,
         }
         setNotes((prev) => [newNote, ...prev])
         setSelectedNoteId(id)
@@ -291,6 +350,8 @@ export function NotesProvider({ children }: NotesProviderProps) {
             content: n.content,
             createdAt: n.created_at,
             updatedAt: n.updated_at,
+            tags: notes.find(existing => existing.id === n.id)?.tags || [],
+            folderId: (n as any).folder_id || null,
           }))
         }
       } catch {
@@ -308,10 +369,113 @@ export function NotesProvider({ children }: NotesProviderProps) {
     [notes],
   )
 
+  /* ── Tag & folder management ────────────────────────────── */
+
+  const moveNoteToFolder = useCallback(
+    (noteId: string, folderId: string | null) => {
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === noteId
+            ? { ...n, folderId, updatedAt: new Date().toISOString() }
+            : n,
+        ),
+      )
+      storage.updateNote(noteId, { folderId: folderId || undefined }).catch(() => { })
+    },
+    [],
+  )
+
+  const addTagToNoteHandler = useCallback(
+    (noteId: string, tag: NoteTag) => {
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === noteId && !n.tags.some((t) => t.id === tag.id)
+            ? { ...n, tags: [...n.tags, tag] }
+            : n,
+        ),
+      )
+      storage.addTagToNote(noteId, tag.id).catch(() => { })
+    },
+    [],
+  )
+
+  const removeTagFromNoteHandler = useCallback(
+    (noteId: string, tagId: string) => {
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === noteId
+            ? { ...n, tags: n.tags.filter((t) => t.id !== tagId) }
+            : n,
+        ),
+      )
+      storage.removeTagFromNote(noteId, tagId).catch(() => { })
+    },
+    [],
+  )
+
+  const createTagHandler = useCallback(
+    async (name: string, color?: string): Promise<NoteTag> => {
+      const dbTag = await storage.createTag(name, color)
+      const tag: NoteTag = { id: dbTag.id, name: dbTag.name, color: dbTag.color }
+      setTags((prev) => [...prev, tag])
+      return tag
+    },
+    [],
+  )
+
+  const deleteTagHandler = useCallback(
+    (id: string) => {
+      setTags((prev) => prev.filter((t) => t.id !== id))
+      // Remove tag from all notes
+      setNotes((prev) =>
+        prev.map((n) => ({
+          ...n,
+          tags: n.tags.filter((t) => t.id !== id),
+        })),
+      )
+      storage.deleteTag(id).catch(() => { })
+    },
+    [],
+  )
+
+  const createFolderHandler = useCallback(
+    async (name: string, parentId?: string): Promise<NoteFolder> => {
+      const dbFolder = await storage.createFolder(name, parentId)
+      const folder: NoteFolder = { id: dbFolder.id, name: dbFolder.name, parentId: dbFolder.parent_id || null }
+      setFolders((prev) => [...prev, folder])
+      return folder
+    },
+    [],
+  )
+
+  const renameFolderHandler = useCallback(
+    (id: string, name: string) => {
+      setFolders((prev) =>
+        prev.map((f) => (f.id === id ? { ...f, name } : f)),
+      )
+      storage.renameFolder(id, name).catch(() => { })
+    },
+    [],
+  )
+
+  const deleteFolderHandler = useCallback(
+    (id: string) => {
+      setFolders((prev) => prev.filter((f) => f.id !== id))
+      // Move notes in this folder to root
+      setNotes((prev) =>
+        prev.map((n) => (n.folderId === id ? { ...n, folderId: null } : n)),
+      )
+      storage.deleteFolder(id).catch(() => { })
+    },
+    [],
+  )
+
   const value = useMemo<NotesContextValue>(
     () => ({
       notes,
       graph,
+      tags,
+      folders,
       selectedNoteId,
       selectNote,
       addNote,
@@ -320,9 +484,17 @@ export function NotesProvider({ children }: NotesProviderProps) {
       getNoteByTitle,
       navigateToWikiLink,
       searchNotes: searchNotesHandler,
+      moveNoteToFolder,
+      addTagToNote: addTagToNoteHandler,
+      removeTagFromNote: removeTagFromNoteHandler,
+      createTag: createTagHandler,
+      deleteTag: deleteTagHandler,
+      createFolder: createFolderHandler,
+      renameFolder: renameFolderHandler,
+      deleteFolder: deleteFolderHandler,
       isLoading,
     }),
-    [notes, graph, selectedNoteId, selectNote, addNote, updateNote, deleteNote, getNoteByTitle, navigateToWikiLink, searchNotesHandler, isLoading],
+    [notes, graph, tags, folders, selectedNoteId, selectNote, addNote, updateNote, deleteNote, getNoteByTitle, navigateToWikiLink, searchNotesHandler, moveNoteToFolder, addTagToNoteHandler, removeTagFromNoteHandler, createTagHandler, deleteTagHandler, createFolderHandler, renameFolderHandler, deleteFolderHandler, isLoading],
   )
 
   return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>

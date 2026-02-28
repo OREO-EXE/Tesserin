@@ -35,7 +35,6 @@ import {
   FiShield,
   FiServer,
   FiCompass,
-  FiCode,
   FiClock,
 } from "react-icons/fi"
 import {
@@ -49,6 +48,14 @@ import { useTesserinTheme } from "@/components/tesserin/core/theme-provider"
 import { usePlugins, pluginRegistry } from "@/lib/plugin-system"
 import { usePluginAPI } from "@/components/tesserin/core/plugin-provider"
 import { CommunityPluginsPanel } from "@/components/tesserin/panels/community-plugins-panel"
+import {
+  DEFAULT_SHORTCUTS,
+  loadCustomShortcuts,
+  saveCustomShortcuts,
+  getEffectiveBinding,
+  eventToShortcutString,
+  formatShortcutDisplay,
+} from "@/lib/keyboard-shortcuts"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -101,7 +108,6 @@ interface SettingsValues {
   // Features — toggle workspace tabs & panels on/off
   "features.canvas": string
   "features.graph": string
-  "features.codeView": string
   "features.sam": string
   "features.floatingChat": string
   "features.statusBar": string
@@ -155,7 +161,6 @@ const DEFAULTS: SettingsValues = {
 
   "features.canvas": "true",
   "features.graph": "true",
-  "features.codeView": "true",
   "features.sam": "true",
   "features.floatingChat": "true",
   "features.statusBar": "true",
@@ -192,20 +197,7 @@ const SECTIONS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
 /*  Shortcut definitions                                               */
 /* ------------------------------------------------------------------ */
 
-const SHORTCUTS = [
-  { action: "Search notes", keys: "Ctrl + K" },
-  { action: "Export note", keys: "Ctrl + E" },
-  { action: "Template manager", keys: "Ctrl + T" },
-  { action: "New note", keys: "Ctrl + N" },
-  { action: "Bold", keys: "Ctrl + B" },
-  { action: "Italic", keys: "Ctrl + I" },
-  { action: "Save note", keys: "Auto-saved" },
-  { action: "Toggle sidebar", keys: "Ctrl + \\" },
-  { action: "Send SAM message", keys: "Enter" },
-  { action: "New line in SAM", keys: "Shift + Enter" },
-  { action: "Navigate graph", keys: "Click + Drag" },
-  { action: "Zoom graph", keys: "Scroll" },
-]
+// Now managed by lib/keyboard-shortcuts.ts — imported below
 
 /* ------------------------------------------------------------------ */
 /*  Utility components                                                 */
@@ -588,7 +580,6 @@ export function SettingsPanel() {
             { value: "notes", label: "Notes" },
             { value: "canvas", label: "Canvas" },
             { value: "graph", label: "Graph" },
-            { value: "code", label: "Code" },
             { value: "sam", label: "SAM" },
           ]}
         />
@@ -1260,45 +1251,184 @@ export function SettingsPanel() {
     </div>
   )
 
-  const renderShortcuts = () => (
-    <div>
-      <SectionHeading title="Keyboard Shortcuts" icon={<FiCommand size={16} />} />
+  const renderShortcuts = () => {
+    const [customShortcuts, setCustomShortcuts] = React.useState<Record<string, string>>({})
+    const [capturing, setCapturing] = React.useState<string | null>(null)
 
-      <div className="space-y-0">
-        {SHORTCUTS.map((s) => (
-          <div
-            key={s.action}
-            className="flex items-center justify-between py-2.5 border-b"
-            style={{ borderColor: "rgba(255,255,255,0.04)" }}
+    React.useEffect(() => {
+      loadCustomShortcuts().then(setCustomShortcuts)
+    }, [])
+
+    React.useEffect(() => {
+      if (!capturing) return
+      const handler = (e: KeyboardEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const combo = eventToShortcutString(e)
+        if (!combo) return
+        const next = { ...customShortcuts, [capturing]: combo }
+        setCustomShortcuts(next)
+        saveCustomShortcuts(next)
+        setCapturing(null)
+      }
+      window.addEventListener("keydown", handler, true)
+      return () => window.removeEventListener("keydown", handler, true)
+    }, [capturing, customShortcuts])
+
+    const resetShortcut = (id: string) => {
+      const next = { ...customShortcuts }
+      delete next[id]
+      setCustomShortcuts(next)
+      saveCustomShortcuts(next)
+    }
+
+    const resetAll = () => {
+      setCustomShortcuts({})
+      saveCustomShortcuts({})
+    }
+
+    const categories = ["navigation", "panels", "editor", "ai"] as const
+    const categoryLabels: Record<string, string> = {
+      navigation: "Navigation", panels: "Panels & Overlays", editor: "Editor", ai: "AI",
+    }
+
+    return (
+      <div>
+        <SectionHeading title="Keyboard Shortcuts" icon={<FiCommand size={16} />} />
+
+        <div className="text-[11px] mb-4" style={{ color: "var(--text-tertiary)" }}>
+          Click any shortcut to remap it. Press <Kbd>Esc</Kbd> to cancel.
+        </div>
+
+        <div className="flex items-center gap-2 mb-5">
+          <button
+            onClick={resetAll}
+            className="skeuo-btn px-3 py-1.5 rounded-xl text-[10px] font-semibold flex items-center gap-1.5 hover:brightness-110 active:scale-95 transition-all"
+            style={{ color: "var(--text-secondary)" }}
           >
-            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{s.action}</span>
-            <div className="flex items-center gap-1">
-              {s.keys.split(" + ").map((k, i, arr) => (
-                <React.Fragment key={k}>
-                  <Kbd>{k.trim()}</Kbd>
-                  {i < arr.length - 1 && (
-                    <span className="text-[9px] mx-0.5" style={{ color: "var(--text-tertiary)" }}>+</span>
-                  )}
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+            <FiRefreshCw size={10} />
+            Reset All to Defaults
+          </button>
+        </div>
 
-      <div
-        className="mt-4 p-3 rounded-xl text-[10px] leading-relaxed"
-        style={{
-          backgroundColor: "var(--bg-panel-inset)",
-          color: "var(--text-tertiary)",
-          boxShadow: "var(--input-inner-shadow)",
-          border: "1px solid var(--border-dark)",
-        }}
-      >
-        <strong style={{ color: "var(--text-secondary)" }}>Tip:</strong> On macOS, use ⌘ Cmd in place of Ctrl for all shortcuts.
+        {categories.map((cat) => {
+          const items = DEFAULT_SHORTCUTS.filter((s) => s.category === cat)
+          if (items.length === 0) return null
+          return (
+            <div key={cat} className="mb-5">
+              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-tertiary)" }}>
+                {categoryLabels[cat]}
+              </div>
+              <div className="space-y-0">
+                {items.map((s) => {
+                  const effectiveKeys = getEffectiveBinding(s.id, customShortcuts)
+                  const isCustomized = !!customShortcuts[s.id]
+                  const isCapturing = capturing === s.id
+
+                  return (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between py-2.5 border-b"
+                      style={{ borderColor: "rgba(255,255,255,0.04)" }}
+                    >
+                      <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{s.label}</span>
+                      <div className="flex items-center gap-2">
+                        {isCapturing ? (
+                          <span
+                            className="px-3 py-1 rounded-lg text-[10px] font-semibold animate-pulse"
+                            style={{
+                              backgroundColor: "var(--accent-primary)",
+                              color: "var(--text-on-accent)",
+                            }}
+                          >
+                            Press keys…
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => setCapturing(s.id)}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded-lg hover:brightness-110 transition-all"
+                            style={{
+                              backgroundColor: "var(--bg-panel-inset)",
+                              boxShadow: "var(--input-inner-shadow)",
+                              border: `1px solid ${isCustomized ? "var(--accent-primary)" : "var(--border-dark)"}`,
+                            }}
+                            title="Click to remap"
+                          >
+                            {effectiveKeys.split("+").map((k, i, arr) => (
+                              <React.Fragment key={i}>
+                                <Kbd>{k.trim()}</Kbd>
+                                {i < arr.length - 1 && (
+                                  <span className="text-[9px] mx-0.5" style={{ color: "var(--text-tertiary)" }}>+</span>
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </button>
+                        )}
+                        {isCustomized && !isCapturing && (
+                          <button
+                            onClick={() => resetShortcut(s.id)}
+                            className="p-1 rounded-lg hover:opacity-80 transition-opacity"
+                            style={{ color: "var(--text-tertiary)" }}
+                            title="Reset to default"
+                          >
+                            <FiRefreshCw size={10} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+
+        {/* Non-remappable shortcuts info */}
+        <div className="mt-4">
+          <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-tertiary)" }}>
+            Editor (fixed)
+          </div>
+          {[
+            { action: "Bold", keys: "Ctrl + B" },
+            { action: "Italic", keys: "Ctrl + I" },
+            { action: "Save note", keys: "Auto-saved" },
+            { action: "Send SAM message", keys: "Enter" },
+            { action: "New line in SAM", keys: "Shift + Enter" },
+          ].map((s) => (
+            <div
+              key={s.action}
+              className="flex items-center justify-between py-2 border-b"
+              style={{ borderColor: "rgba(255,255,255,0.04)" }}
+            >
+              <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>{s.action}</span>
+              <div className="flex items-center gap-1">
+                {s.keys.split(" + ").map((k, i, arr) => (
+                  <React.Fragment key={i}>
+                    <Kbd>{k.trim()}</Kbd>
+                    {i < arr.length - 1 && (
+                      <span className="text-[9px] mx-0.5" style={{ color: "var(--text-tertiary)" }}>+</span>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div
+          className="mt-4 p-3 rounded-xl text-[10px] leading-relaxed"
+          style={{
+            backgroundColor: "var(--bg-panel-inset)",
+            color: "var(--text-tertiary)",
+            boxShadow: "var(--input-inner-shadow)",
+            border: "1px solid var(--border-dark)",
+          }}
+        >
+          <strong style={{ color: "var(--text-secondary)" }}>Tip:</strong> On macOS, use ⌘ Cmd in place of Ctrl for all shortcuts. Custom shortcuts sync across sessions.
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const renderAbout = () => (
     <div>
@@ -1880,7 +2010,6 @@ export function SettingsPanel() {
     const FEATURE_ITEMS: { key: SettingKey; label: string; description: string; icon: React.ReactNode }[] = [
       { key: "features.canvas", label: "Canvas", description: "Infinite whiteboard for visual thinking and diagrams.", icon: <FiCompass size={14} /> },
       { key: "features.graph", label: "Graph View", description: "Interactive knowledge graph visualizing note connections.", icon: <HiOutlineCpuChip size={14} /> },
-      { key: "features.codeView", label: "Code Editor", description: "Built-in code view with syntax highlighting.", icon: <FiCode size={14} /> },
       { key: "features.sam", label: "SAM (AI Assistant)", description: "AI-powered assistant for writing, summarizing, and brainstorming.", icon: <HiOutlineSparkles size={14} /> },
       { key: "features.floatingChat", label: "Floating AI Chat", description: "Quick-access AI chat bubble in the bottom-right corner.", icon: <HiOutlineSparkles size={14} /> },
       { key: "features.statusBar", label: "Status Bar", description: "Bottom bar showing tips and plugin widgets.", icon: <FiMonitor size={14} /> },

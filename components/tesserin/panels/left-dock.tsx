@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { FiFileText, FiCompass, FiCode, FiSettings, FiChevronsRight, FiChevronsLeft } from "react-icons/fi"
+import { FiFileText, FiCompass, FiSettings, FiChevronsRight, FiChevronsLeft } from "react-icons/fi"
 import { HiOutlineCpuChip, HiOutlineSparkles } from "react-icons/hi2"
 import { usePlugins } from "@/lib/plugin-system"
 import { SkeuoPanel } from "../core/skeuo-panel"
@@ -25,7 +25,6 @@ const CORE_TABS = [
   { id: "notes", icon: FiFileText, label: "Notes" },
   { id: "canvas", icon: FiCompass, label: "Canvas" },
   { id: "graph", icon: HiOutlineCpuChip, label: "Graph" },
-  { id: "code", icon: FiCode, label: "Code" },
   { id: "sam", icon: HiOutlineSparkles, label: "SAM" },
   { id: "settings", icon: FiSettings, label: "Settings" },
 ] as const
@@ -43,7 +42,6 @@ interface LeftDockProps {
 const TAB_FEATURE_MAP: Record<string, string> = {
   canvas: "features.canvas",
   graph: "features.graph",
-  code: "features.codeView",
   sam: "features.sam",
 }
 

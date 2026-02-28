@@ -22,7 +22,6 @@ import { ReferenceManager } from "@/components/tesserin/panels/reference-manager
 import { MarkdownEditor } from "@/components/tesserin/workspace/markdown-editor"
 import { CreativeCanvas } from "@/components/tesserin/workspace/creative-canvas"
 import { D3GraphView } from "@/components/tesserin/workspace/d3-graph-view"
-import { CodeView } from "@/components/tesserin/workspace/code-view"
 import { SAMNode } from "@/components/tesserin/workspace/sam-node"
 import { SplitPanes, useSplitPanes } from "@/components/tesserin/workspace/split-panes"
 import { SettingsPanel } from "@/components/tesserin/panels/settings-panel"
@@ -34,6 +33,7 @@ const DailyNotes = React.lazy(() =>
 
 import { NotesProvider, useNotes } from "@/lib/notes-store"
 import { usePlugins } from "@/lib/plugin-system"
+import { DEFAULT_SHORTCUTS, matchesShortcut, loadCustomShortcuts, getEffectiveBinding } from "@/lib/keyboard-shortcuts"
 import { getStartupTip, formatShortcut, type TesserinTip } from "@/lib/tips"
 import { getSetting } from "@/lib/storage-client"
 
@@ -165,40 +165,48 @@ function AppContent() {
         }
     }, [openSplit])
 
-    // Keyboard shortcuts
+    // Keyboard shortcuts — load custom overrides and match dynamically
+    const [shortcutOverrides, setShortcutOverrides] = useState<Record<string, string>>({})
+    useEffect(() => {
+        loadCustomShortcuts().then(setShortcutOverrides)
+        // Reload when settings change (same interval as feature toggles)
+        const interval = setInterval(() => loadCustomShortcuts().then(setShortcutOverrides), 2000)
+        return () => clearInterval(interval)
+    }, [])
+
+    const shortcutActions = useMemo(() => {
+        const bindings: Record<string, string> = {}
+        for (const def of DEFAULT_SHORTCUTS) {
+            bindings[def.id] = getEffectiveBinding(def.id, shortcutOverrides)
+        }
+        return bindings
+    }, [shortcutOverrides])
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            const mod = e.metaKey || e.ctrlKey
-            if (mod && e.key === 'k') {
-                e.preventDefault()
-                setShowSearch(prev => !prev)
-            } else if (mod && e.key === 'e') {
-                e.preventDefault()
-                setShowExport(prev => !prev)
-            } else if (mod && e.key === 't') {
-                e.preventDefault()
-                setShowTemplates(prev => !prev)
-            } else if (mod && e.shiftKey && e.key === 'B') {
-                e.preventDefault()
-                setShowBacklinks(prev => !prev)
-            } else if (mod && e.shiftKey && e.key === 'H') {
-                e.preventDefault()
-                setShowVersionHistory(prev => !prev)
-            } else if (mod && e.shiftKey && e.key === 'D') {
-                e.preventDefault()
-                setShowQuickCapture(prev => !prev)
-            } else if (mod && e.shiftKey && e.key === 'R') {
-                e.preventDefault()
-                setShowReferences(prev => !prev)
-            } else if (mod && e.key === '\\') {
-                e.preventDefault()
-                if (splitState.isActive) closeSplit()
-                else openSplit()
+            for (const [actionId, keys] of Object.entries(shortcutActions)) {
+                if (matchesShortcut(e, keys)) {
+                    e.preventDefault()
+                    switch (actionId) {
+                        case "search-palette": setShowSearch(prev => !prev); break
+                        case "export-panel": setShowExport(prev => !prev); break
+                        case "template-manager": setShowTemplates(prev => !prev); break
+                        case "toggle-backlinks": setShowBacklinks(prev => !prev); break
+                        case "version-history": setShowVersionHistory(prev => !prev); break
+                        case "quick-capture": setShowQuickCapture(prev => !prev); break
+                        case "references": setShowReferences(prev => !prev); break
+                        case "toggle-split":
+                            if (splitState.isActive) closeSplit()
+                            else openSplit()
+                            break
+                    }
+                    return
+                }
             }
         }
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [splitState.isActive, openSplit, closeSplit])
+    }, [shortcutActions, splitState.isActive, openSplit, closeSplit])
 
     const handleSelectNote = useCallback(
         (noteId: string) => {
@@ -254,7 +262,6 @@ function AppContent() {
                                 </div>
                                 <div className={`w-full h-full ${activeTab === "canvas" ? "" : "hidden"}`}><CreativeCanvas /></div>
                                 <div className={`w-full h-full ${activeTab === "graph" ? "" : "hidden"}`}><D3GraphView /></div>
-                                <div className={`w-full h-full ${activeTab === "code" ? "" : "hidden"}`}><CodeView /></div>
                                 <div className={`w-full h-full ${activeTab === "sam" ? "" : "hidden"}`}><SAMNode /></div>
                                 <div className={`w-full h-full ${activeTab === "settings" ? "" : "hidden"}`}><SettingsPanel /></div>
                                 {/* Dynamic plugin workspace panels */}

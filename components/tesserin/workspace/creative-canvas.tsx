@@ -8,6 +8,8 @@ import "@excalidraw/excalidraw/index.css"
 import { TesserinLogo } from "../core/tesserin-logo"
 import * as storage from "@/lib/storage-client"
 import { useTesserinTheme } from "@/components/tesserin/core/theme-provider"
+import { useNotes, type Note } from "@/lib/notes-store"
+import { FiFileText, FiSearch, FiX, FiPlus } from "react-icons/fi"
 
 /**
  * CreativeCanvas — Tesseradraw
@@ -41,16 +43,258 @@ const PERSIST_APP_STATE_KEYS = [
   "currentItemArrowType",
 ] as const
 
+/* ── helpers ──────────────────────────────────────────── */
+
+/** Generate a random hex ID for Excalidraw elements */
+function excalidrawId(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+  let id = ""
+  for (let i = 0; i < 21; i++) id += chars[Math.floor(Math.random() * chars.length)]
+  return id
+}
+
+/** Create Excalidraw elements representing a note card */
+function createNoteCardElements(note: Note, x: number, y: number, isDark: boolean) {
+  const cardWidth = 260
+  const cardHeight = 120
+  const preview = note.content
+    .replace(/^#.*\n?/gm, "")
+    .replace(/\[\[([^\]]+)\]\]/g, "$1")
+    .trim()
+    .slice(0, 100)
+
+  const groupId = excalidrawId()
+
+  // Card background rectangle
+  const rect = {
+    id: excalidrawId(),
+    type: "rectangle" as const,
+    x,
+    y,
+    width: cardWidth,
+    height: cardHeight,
+    strokeColor: isDark ? "#FACC15" : "#CA8A04",
+    backgroundColor: isDark ? "#1a1a1a" : "#fdfbf7",
+    fillStyle: "solid" as const,
+    strokeWidth: 2,
+    roughness: 0,
+    opacity: 100,
+    angle: 0,
+    strokeStyle: "solid" as const,
+    roundness: { type: 3, value: 12 },
+    seed: Math.floor(Math.random() * 1000000),
+    version: 1,
+    versionNonce: Math.floor(Math.random() * 1000000),
+    isDeleted: false,
+    groupIds: [groupId],
+    boundElements: null,
+    updated: Date.now(),
+    link: null,
+    locked: false,
+    frameId: null,
+  }
+
+  // Note title text
+  const titleText = {
+    id: excalidrawId(),
+    type: "text" as const,
+    x: x + 16,
+    y: y + 14,
+    width: cardWidth - 32,
+    height: 24,
+    text: note.title,
+    fontSize: 18,
+    fontFamily: 1,
+    textAlign: "left" as const,
+    verticalAlign: "top" as const,
+    strokeColor: isDark ? "#FACC15" : "#CA8A04",
+    backgroundColor: "transparent",
+    fillStyle: "solid" as const,
+    strokeWidth: 1,
+    roughness: 0,
+    opacity: 100,
+    angle: 0,
+    strokeStyle: "solid" as const,
+    roundness: null,
+    seed: Math.floor(Math.random() * 1000000),
+    version: 1,
+    versionNonce: Math.floor(Math.random() * 1000000),
+    isDeleted: false,
+    groupIds: [groupId],
+    boundElements: null,
+    updated: Date.now(),
+    link: null,
+    locked: false,
+    frameId: null,
+    containerId: null,
+    originalText: note.title,
+    autoResize: false,
+    lineHeight: 1.25,
+  }
+
+  // Preview text
+  const previewText = {
+    id: excalidrawId(),
+    type: "text" as const,
+    x: x + 16,
+    y: y + 46,
+    width: cardWidth - 32,
+    height: 56,
+    text: preview || "(empty note)",
+    fontSize: 12,
+    fontFamily: 1,
+    textAlign: "left" as const,
+    verticalAlign: "top" as const,
+    strokeColor: isDark ? "#888888" : "#7a756b",
+    backgroundColor: "transparent",
+    fillStyle: "solid" as const,
+    strokeWidth: 1,
+    roughness: 0,
+    opacity: 80,
+    angle: 0,
+    strokeStyle: "solid" as const,
+    roundness: null,
+    seed: Math.floor(Math.random() * 1000000),
+    version: 1,
+    versionNonce: Math.floor(Math.random() * 1000000),
+    isDeleted: false,
+    groupIds: [groupId],
+    boundElements: null,
+    updated: Date.now(),
+    link: null,
+    locked: false,
+    frameId: null,
+    containerId: null,
+    originalText: preview || "(empty note)",
+    autoResize: false,
+    lineHeight: 1.25,
+  }
+
+  return [rect, titleText, previewText]
+}
+
+/* ── Note Picker Panel ───────────────────────────────── */
+
+function NotePickerPanel({
+  notes,
+  onInsert,
+  onClose,
+}: {
+  notes: Note[]
+  onInsert: (note: Note) => void
+  onClose: () => void
+}) {
+  const [search, setSearch] = useState("")
+  const filtered = search.trim()
+    ? notes.filter(
+        (n) =>
+          n.title.toLowerCase().includes(search.toLowerCase()) ||
+          n.tags.some((t) => t.name.toLowerCase().includes(search.toLowerCase())),
+      )
+    : notes
+
+  return (
+    <div
+      className="absolute top-3 right-3 z-50 w-64 rounded-2xl overflow-hidden shadow-xl border"
+      style={{
+        backgroundColor: "var(--bg-panel)",
+        borderColor: "var(--border-dark)",
+      }}
+    >
+      <div className="px-3 py-2 border-b flex items-center gap-2" style={{ borderColor: "var(--border-dark)" }}>
+        <FiFileText size={14} style={{ color: "var(--accent-primary)" }} />
+        <span className="text-xs font-bold flex-1" style={{ color: "var(--text-primary)" }}>Insert Note</span>
+        <button onClick={onClose} className="opacity-60 hover:opacity-100 transition-opacity">
+          <FiX size={14} style={{ color: "var(--text-secondary)" }} />
+        </button>
+      </div>
+      <div className="px-2 py-1.5">
+        <div className="skeuo-inset flex items-center gap-1.5 px-2 py-1 rounded-lg">
+          <FiSearch size={12} style={{ color: "var(--text-tertiary)" }} />
+          <input
+            autoFocus
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 bg-transparent border-none text-xs focus:outline-none"
+            style={{ color: "var(--text-primary)" }}
+            placeholder="Search notes..."
+          />
+        </div>
+      </div>
+      <div className="max-h-60 overflow-y-auto custom-scrollbar px-1.5 pb-1.5">
+        {filtered.length === 0 && (
+          <p className="text-[10px] text-center py-4" style={{ color: "var(--text-tertiary)" }}>
+            No notes found
+          </p>
+        )}
+        {filtered.map((note) => (
+          <button
+            key={note.id}
+            onClick={() => onInsert(note)}
+            className="w-full text-left px-2.5 py-2 rounded-xl mb-0.5 flex items-center gap-2 hover:opacity-80 transition-opacity"
+            style={{ color: "var(--text-primary)" }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--bg-panel-inset)" }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent" }}
+          >
+            <FiFileText size={12} className="shrink-0" style={{ color: "var(--text-tertiary)" }} />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold truncate">{note.title}</p>
+              {note.tags.length > 0 && (
+                <div className="flex gap-0.5 mt-0.5">
+                  {note.tags.slice(0, 3).map((t) => (
+                    <span key={t.id} className="text-[8px] px-1 rounded-full" style={{ backgroundColor: t.color + "22", color: t.color }}>
+                      {t.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <FiPlus size={12} className="shrink-0" style={{ color: "var(--text-tertiary)" }} />
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /* ── component ───────────────────────────────────────────── */
 
 export function CreativeCanvas() {
   const { isDark } = useTesserinTheme()
+  const { notes } = useNotes()
   const apiRef = useRef<any>(null)
   const canvasIdRef = useRef<string>(DEFAULT_CANVAS_ID)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [initialData, setInitialData] = useState<any | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
   const readyToSave = useRef(false)
+  const [showNotePicker, setShowNotePicker] = useState(false)
+  const insertCountRef = useRef(0)
+
+  /** Insert a note as a card onto the canvas */
+  const handleInsertNote = useCallback(
+    (note: Note) => {
+      const api = apiRef.current
+      if (!api) return
+
+      // Position each card with a slight offset to avoid stacking
+      const offset = insertCountRef.current * 30
+      insertCountRef.current++
+
+      // Get current viewport center for placement
+      const appState = api.getAppState()
+      const centerX = (appState.scrollX ? -appState.scrollX : 0) + 200 + offset
+      const centerY = (appState.scrollY ? -appState.scrollY : 0) + 150 + offset
+
+      const newElements = createNoteCardElements(note, centerX, centerY, isDark)
+      const existingElements = api.getSceneElements()
+      api.updateScene({
+        elements: [...existingElements, ...newElements],
+      })
+      setShowNotePicker(false)
+    },
+    [isDark],
+  )
 
   // ── Load canvas from SQLite (or localStorage fallback) on mount ─
   useEffect(() => {
@@ -541,6 +785,28 @@ export function CreativeCanvas() {
   return (
     <div className={`w-full h-full relative ${!isDark ? 'tesserin-canvas-light' : ''}`}>
       <style>{brandCSS}</style>
+      {/* Insert Note button */}
+      <button
+        onClick={() => setShowNotePicker(!showNotePicker)}
+        className="absolute top-3 right-3 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-lg transition-all hover:scale-105"
+        style={{
+          backgroundColor: "var(--accent-primary)",
+          color: "#000",
+          display: showNotePicker ? "none" : "flex",
+        }}
+        aria-label="Insert note onto canvas"
+      >
+        <FiFileText size={13} />
+        Insert Note
+      </button>
+      {/* Note picker panel */}
+      {showNotePicker && (
+        <NotePickerPanel
+          notes={notes}
+          onInsert={handleInsertNote}
+          onClose={() => setShowNotePicker(false)}
+        />
+      )}
       <Excalidraw
         excalidrawAPI={onAPI}
         initialData={initialData || undefined}
