@@ -67,7 +67,7 @@ jobs:
           version: 9
 
       - name: Install Python setuptools (node-gyp needs distutils)
-        run: python3 -m pip install setuptools
+        run: python3 -m pip install --break-system-packages setuptools || python3 -m pip install setuptools
         if: matrix.os != 'windows-latest'
 
       - name: Install Python setuptools (Windows)
