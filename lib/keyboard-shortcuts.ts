@@ -40,6 +40,7 @@ export const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
   { id: "quick-capture",     label: "Quick Capture",            defaultKeys: "Ctrl+Shift+D", category: "panels" },
   { id: "references",        label: "Reference Manager",        defaultKeys: "Ctrl+Shift+R", category: "panels" },
   { id: "toggle-split",      label: "Toggle Split View",        defaultKeys: "Ctrl+\\",      category: "editor" },
+
 ]
 
 /* ------------------------------------------------------------------ */

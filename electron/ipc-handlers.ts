@@ -386,6 +386,29 @@ export function registerIpcHandlers(): void {
         return result.canceled ? null : result.filePaths[0]
     })
 
+    // ── Save File Dialog ──────────────────────────────────────────────
+    ipcMain.handle('dialog:saveFile', async (_e, options: {
+        title?: string
+        defaultPath?: string
+        filters?: Array<{ name: string; extensions: string[] }>
+    }) => {
+        const win = BrowserWindow.getFocusedWindow()
+        if (!win) return null
+        const result = await dialog.showSaveDialog(win, {
+            title: options?.title || 'Save File',
+            defaultPath: options?.defaultPath,
+            filters: options?.filters,
+        })
+        return result.canceled ? null : result.filePath
+    })
+
+    // ── Write binary buffer (base64-encoded) to file ──────────────────
+    ipcMain.handle('fs:writeBuffer', async (_e, filePath: string, base64Data: string) => {
+        const safePath = validatePath(filePath, 'filePath')
+        const buffer = Buffer.from(base64Data, 'base64')
+        await fs.promises.writeFile(safePath, buffer)
+    })
+
     // ── API Keys ─────────────────────────────────────────────────────
     ipcMain.handle('api:keys:list', () => {
         const keys = db.listApiKeys()

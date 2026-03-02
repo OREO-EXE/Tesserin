@@ -184,6 +184,20 @@ export function useCanvasStore() {
   }
 }
 
+/* ── Excalidraw API ref (shared across components) ───── */
+
+let _excalidrawAPI: any = null
+
+/** Store the Excalidraw imperative API ref so other components (e.g. export dialog) can access it. */
+export function setExcalidrawAPI(api: any) {
+  _excalidrawAPI = api
+}
+
+/** Retrieve the current Excalidraw imperative API instance (or null). */
+export function getExcalidrawAPI(): any {
+  return _excalidrawAPI
+}
+
 /* ── Non-React access (for IPC listeners, etc.) ──────── */
 export const canvasActions = {
   loadCanvases,

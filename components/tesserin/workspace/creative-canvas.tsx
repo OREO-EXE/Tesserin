@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from "react"
 import {
   Excalidraw,
-  MainMenu,
   WelcomeScreen,
 } from "@excalidraw/excalidraw"
 import "@excalidraw/excalidraw/index.css"
@@ -13,6 +12,7 @@ import * as storage from "@/lib/storage-client"
 import { useTesserinTheme } from "@/components/tesserin/core/theme-provider"
 import { useNotes, type Note } from "@/lib/notes-store"
 import { useCanvasStore } from "@/lib/canvas-store"
+import { setExcalidrawAPI } from "@/lib/canvas-store"
 import { excalidrawId } from "@/lib/canvas-elements"
 import { generateDiagram, type DiagramType } from "@/lib/diagram-ai"
 import { CanvasTabBar } from "./canvas-tab-bar"
@@ -651,6 +651,7 @@ export function CreativeCanvas() {
 
   const onAPI = useCallback((api: any) => {
     apiRef.current = api
+    setExcalidrawAPI(api) // Share with canvas export dialog
     // If canvas data finished loading before Excalidraw was ready, apply it now
     if (pendingSceneRef.current) {
       api.updateScene(pendingSceneRef.current)
@@ -1100,14 +1101,10 @@ export function CreativeCanvas() {
           },
         }}
       >
-        <MainMenu>
-          <MainMenu.DefaultItems.LoadScene />
-          <MainMenu.DefaultItems.SaveToActiveFile />
-          <MainMenu.DefaultItems.Export />
-          <MainMenu.DefaultItems.ClearCanvas />
-          <MainMenu.Separator />
-          <MainMenu.DefaultItems.Help />
-        </MainMenu>
+        {/* No custom <MainMenu> — Excalidraw renders its full native menu
+            with all defaults: Export (PNG/SVG/Clipboard with Background,
+            Dark mode, Embed scene, Scale), Load Scene, Clear Canvas,
+            Toggle Theme, Change Background, Help, etc. */}
         <WelcomeScreen>
           <WelcomeScreen.Hints.MenuHint />
           <WelcomeScreen.Hints.ToolbarHint />

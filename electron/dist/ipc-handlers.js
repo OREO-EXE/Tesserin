@@ -394,6 +394,24 @@ function registerIpcHandlers() {
         });
         return result.canceled ? null : result.filePaths[0];
     });
+    // ── Save File Dialog ──────────────────────────────────────────────
+    electron_1.ipcMain.handle('dialog:saveFile', async (_e, options) => {
+        const win = electron_1.BrowserWindow.getFocusedWindow();
+        if (!win)
+            return null;
+        const result = await electron_1.dialog.showSaveDialog(win, {
+            title: options?.title || 'Save File',
+            defaultPath: options?.defaultPath,
+            filters: options?.filters,
+        });
+        return result.canceled ? null : result.filePath;
+    });
+    // ── Write binary buffer (base64-encoded) to file ──────────────────
+    electron_1.ipcMain.handle('fs:writeBuffer', async (_e, filePath, base64Data) => {
+        const safePath = validatePath(filePath, 'filePath');
+        const buffer = Buffer.from(base64Data, 'base64');
+        await fs.promises.writeFile(safePath, buffer);
+    });
     // ── API Keys ─────────────────────────────────────────────────────
     electron_1.ipcMain.handle('api:keys:list', () => {
         const keys = db.listApiKeys();

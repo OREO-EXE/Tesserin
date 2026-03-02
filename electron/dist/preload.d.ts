@@ -145,6 +145,7 @@ declare const tesserinAPI: {
         }>>;
         readFile: (filePath: string) => Promise<string>;
         writeFile: (filePath: string, content: string) => Promise<any>;
+        writeBuffer: (filePath: string, base64Data: string) => Promise<void>;
         stat: (filePath: string) => Promise<{
             size: number;
             isDirectory: boolean;
@@ -163,6 +164,14 @@ declare const tesserinAPI: {
     };
     dialog: {
         openFolder: () => Promise<string | null>;
+        saveFile: (options: {
+            title?: string;
+            defaultPath?: string;
+            filters?: Array<{
+                name: string;
+                extensions: string[];
+            }>;
+        }) => Promise<string | null>;
     };
     ppt: {
         generate: (specOrMarkdown: Record<string, unknown> | string, outputPath: string) => Promise<string>;

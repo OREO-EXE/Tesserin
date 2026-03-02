@@ -156,6 +156,7 @@ interface TesserinFS {
     readDir(dirPath: string): Promise<Array<{ name: string; path: string; isDirectory: boolean }>>
     readFile(filePath: string): Promise<string>
     writeFile(filePath: string, content: string): Promise<void>
+    writeBuffer(filePath: string, base64Data: string): Promise<void>
     stat(filePath: string): Promise<{ size: number; isDirectory: boolean; isFile: boolean; modified: string }>
     mkdir(dirPath: string): Promise<void>
     delete(filePath: string): Promise<void>
@@ -167,6 +168,11 @@ interface TesserinShell {
 
 interface TesserinDialog {
     openFolder(): Promise<string | null>
+    saveFile(options: {
+        title?: string
+        defaultPath?: string
+        filters?: Array<{ name: string; extensions: string[] }>
+    }): Promise<string | null>
 }
 
 interface TesserinApiKeyInfo {

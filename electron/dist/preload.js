@@ -141,6 +141,7 @@ const tesserinAPI = {
         readDir: (dirPath) => electron_1.ipcRenderer.invoke('fs:readDir', dirPath),
         readFile: (filePath) => electron_1.ipcRenderer.invoke('fs:readFile', filePath),
         writeFile: (filePath, content) => electron_1.ipcRenderer.invoke('fs:writeFile', filePath, content),
+        writeBuffer: (filePath, base64Data) => electron_1.ipcRenderer.invoke('fs:writeBuffer', filePath, base64Data),
         stat: (filePath) => electron_1.ipcRenderer.invoke('fs:stat', filePath),
         mkdir: (dirPath) => electron_1.ipcRenderer.invoke('fs:mkdir', dirPath),
         delete: (filePath) => electron_1.ipcRenderer.invoke('fs:delete', filePath),
@@ -152,6 +153,7 @@ const tesserinAPI = {
     // ── Dialog ────────────────────────────────────────────────────────
     dialog: {
         openFolder: () => electron_1.ipcRenderer.invoke('dialog:openFolder'),
+        saveFile: (options) => electron_1.ipcRenderer.invoke('dialog:saveFile', options),
     },
     // ── PPT Generation ──────────────────────────────────────────────
     ppt: {

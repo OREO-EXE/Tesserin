@@ -172,6 +172,7 @@ const tesserinAPI = {
         readDir: (dirPath: string) => ipcRenderer.invoke('fs:readDir', dirPath) as Promise<Array<{ name: string; path: string; isDirectory: boolean }>>,
         readFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath) as Promise<string>,
         writeFile: (filePath: string, content: string) => ipcRenderer.invoke('fs:writeFile', filePath, content),
+        writeBuffer: (filePath: string, base64Data: string) => ipcRenderer.invoke('fs:writeBuffer', filePath, base64Data) as Promise<void>,
         stat: (filePath: string) => ipcRenderer.invoke('fs:stat', filePath) as Promise<{ size: number; isDirectory: boolean; isFile: boolean; modified: string }>,
         mkdir: (dirPath: string) => ipcRenderer.invoke('fs:mkdir', dirPath) as Promise<void>,
         delete: (filePath: string) => ipcRenderer.invoke('fs:delete', filePath) as Promise<void>,
@@ -185,6 +186,11 @@ const tesserinAPI = {
     // ── Dialog ────────────────────────────────────────────────────────
     dialog: {
         openFolder: () => ipcRenderer.invoke('dialog:openFolder') as Promise<string | null>,
+        saveFile: (options: {
+            title?: string
+            defaultPath?: string
+            filters?: Array<{ name: string; extensions: string[] }>
+        }) => ipcRenderer.invoke('dialog:saveFile', options) as Promise<string | null>,
     },
 
     // ── PPT Generation ──────────────────────────────────────────────
