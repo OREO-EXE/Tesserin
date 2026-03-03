@@ -1147,8 +1147,8 @@ export function CreativeCanvas({ onSplitOpen }: { onSplitOpen?: () => void } = {
           onClose={() => setShowNotePicker(false)}
         />
       )}
-      {/* Canvas-switch overlay — solid cover during data load, removed once scene is ready */}
-      {isTransitioning && activeCanvasId && (
+      {/* Canvas-switch overlay — covers Excalidraw from first mount until scene data is applied */}
+      {isTransitioning && (
         <div
           className="absolute inset-0 z-30"
           style={{ backgroundColor: isDark ? DARK_BG : LIGHT_BG }}
