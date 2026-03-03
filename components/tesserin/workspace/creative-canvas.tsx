@@ -14,9 +14,7 @@ import { useNotes, type Note } from "@/lib/notes-store"
 import { useCanvasStore } from "@/lib/canvas-store"
 import { setExcalidrawAPI } from "@/lib/canvas-store"
 import { excalidrawId } from "@/lib/canvas-elements"
-import { generateDiagram, type DiagramType } from "@/lib/diagram-ai"
 import { CanvasTabBar } from "./canvas-tab-bar"
-import { CanvasAIDialog } from "./canvas-ai-dialog"
 import { FiFileText, FiX, FiColumns } from "react-icons/fi"
 
 /**
@@ -307,10 +305,7 @@ export function CreativeCanvas({ onSplitOpen }: { onSplitOpen?: () => void } = {
   })
   const [showNotePicker, setShowNotePicker] = useState(false)
   const insertCountRef = useRef(0)
-  const [showAIDialog, setShowAIDialog] = useState(false)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null)
-  const aiInsertPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+
 
   // Sync isFullscreen state with native fullscreenchange events (handles Escape key natively)
   useEffect(() => {
@@ -688,59 +683,6 @@ export function CreativeCanvas({ onSplitOpen }: { onSplitOpen?: () => void } = {
       apiRef.current.updateScene({ appState: { theme: isDark ? "dark" : "light" } })
     }
   }, [isDark])
-
-  // ── Right-click context menu for AI diagram generation ─────────
-  const handleCanvasContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      // Only show custom context menu on canvas background (not Excalidraw UI)
-      const target = e.target as HTMLElement
-      if (target.closest(".excalidraw") && target.tagName === "CANVAS") {
-        e.preventDefault()
-        setContextMenuPos({ x: e.clientX, y: e.clientY })
-
-        // Compute canvas coordinates for element insertion
-        const api = apiRef.current
-        if (api) {
-          const appState = api.getAppState()
-          const canvasX = (e.clientX - (appState.offsetLeft || 0)) / (appState.zoom?.value || 1) - (appState.scrollX || 0)
-          const canvasY = (e.clientY - (appState.offsetTop || 0)) / (appState.zoom?.value || 1) - (appState.scrollY || 0)
-          aiInsertPos.current = { x: canvasX, y: canvasY }
-        }
-      }
-    },
-    [],
-  )
-
-  // Close context menu on any click
-  useEffect(() => {
-    if (!contextMenuPos) return
-    const handler = () => setContextMenuPos(null)
-    window.addEventListener("click", handler)
-    return () => window.removeEventListener("click", handler)
-  }, [contextMenuPos])
-
-  // ── AI diagram generation handler ─────────────────────────────
-  const handleAIGenerate = useCallback(
-    async (prompt: string, type: DiagramType) => {
-      setIsGenerating(true)
-      try {
-        const result = await generateDiagram(prompt, type, aiInsertPos.current, isDark)
-        const api = apiRef.current
-        if (api && result.elements.length > 0) {
-          const existing = api.getSceneElements()
-          api.updateScene({ elements: [...existing, ...result.elements] })
-          readyToSave.current && saveNowRef.current?.()
-        }
-        setShowAIDialog(false)
-      } catch (err) {
-        console.error("[Tesseradraw] AI generation failed:", err)
-        // Keep dialog open so user can retry
-      } finally {
-        setIsGenerating(false)
-      }
-    },
-    [isDark],
-  )
 
   /* ── Tesserin-branded CSS overrides for Excalidraw UI chrome ── */
   const brandCSS = `
@@ -1128,7 +1070,6 @@ export function CreativeCanvas({ onSplitOpen }: { onSplitOpen?: () => void } = {
       {/* Canvas area */}
       <div
         className="flex-1 relative min-h-0"
-        onContextMenu={handleCanvasContextMenu}
       >
       {/* Excalidraw is always mounted — canvas switches use updateScene() so it never
           remounts. This eliminates the blank-flash / stuck behaviour between tabs. */}
@@ -1221,60 +1162,7 @@ export function CreativeCanvas({ onSplitOpen }: { onSplitOpen?: () => void } = {
         </button>
       )}
 
-      {/* Right-click context menu — neumorphic popover */}
-      {contextMenuPos && (
-        <div
-          className="skeuo-panel fixed z-[200] py-2 min-w-[200px]"
-          style={{
-            left: contextMenuPos.x,
-            top: contextMenuPos.y,
-            borderRadius: "var(--radius-inset)",
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold transition-all"
-            style={{ color: "var(--accent-primary)", borderRadius: 8 }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--bg-panel-inset)"
-              e.currentTarget.style.boxShadow = "var(--input-inner-shadow)"
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent"
-              e.currentTarget.style.boxShadow = "none"
-            }}
-            onClick={() => {
-              setContextMenuPos(null)
-              setShowAIDialog(true)
-            }}
-          >
-            <div
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 7,
-                background: "var(--accent-primary)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 0 8px rgba(250,204,21,0.3)",
-              }}
-            >
-              <ScribbledZap size={11} style={{ color: "var(--text-on-accent)" }} />
-            </div>
-            Generate Diagram with AI
-          </button>
-        </div>
-      )}
       </div>
-
-      {/* AI Dialog */}
-      <CanvasAIDialog
-        isOpen={showAIDialog}
-        onClose={() => setShowAIDialog(false)}
-        onGenerate={handleAIGenerate}
-        isGenerating={isGenerating}
-      />
     </div>
   )
 }
