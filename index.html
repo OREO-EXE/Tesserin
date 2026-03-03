@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,8 +9,10 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/build/icons/16x16.png" />
 
     <style>
-      /* Prevent flash of unstyled content */
-      body { margin: 0; padding: 0; overflow: hidden; background: #050505; }
+      /* Prevent flash of unstyled content — class="dark" on <html> ensures Tailwind's
+         CSS variables resolve to dark values before React/TesserinThemeProvider mounts,
+         eliminating the grey/cream flash on every cold start. */
+      html, body { margin: 0; padding: 0; overflow: hidden; background: #050505; color-scheme: dark; }
       /* Custom title bar drag region */
       .titlebar-drag { -webkit-app-region: drag; }
       .titlebar-no-drag { -webkit-app-region: no-drag; }

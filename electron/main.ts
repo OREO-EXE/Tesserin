@@ -56,6 +56,7 @@ function createWindow() {
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     backgroundColor: '#050505',
+    show: false,
     icon: nativeImage.createFromPath(iconPath),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -72,6 +73,11 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'))
   }
+
+  // Show window only after the first paint — eliminates the grey flash on startup
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show()
+  })
 
   mainWindow.on('closed', () => {
     mainWindow = null
