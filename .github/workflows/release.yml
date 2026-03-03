@@ -6,9 +6,9 @@
 #    - Manual dispatch from the Actions tab
 #
 #  Outputs:
-#    macOS   → .dmg
-#    Windows → .exe (NSIS installer)
-#    Linux   → .AppImage, .deb, .rpm
+#    macOS   → .dmg, .zip (universal: x64 + arm64)
+#    Windows → .exe (NSIS installer, x64)
+#    Linux   → .AppImage, .deb
 #
 #  After the build completes, a GitHub Release is created with
 #  all binaries attached. Users can download directly from:
@@ -18,15 +18,14 @@ name: Release
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag to release (e.g. v1.0.0)'
-        required: false
+      version:
+        description: 'Version to release (e.g. 1.0.8)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -36,10 +35,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  # ─────────────────────────────────────────────────────────────
+  # Build on each platform
+  # ─────────────────────────────────────────────────────────────
+  build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     strategy:
       fail-fast: false
@@ -70,12 +72,14 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Import Apple signing certs
-        if: matrix.os == 'macos-latest' && secrets.MACOS_CERTIFICATE != ''
+        if: matrix.os == 'macos-latest' && env.MACOS_CERTIFICATE != ''
         uses: apple-actions/import-codesign-certs@v3
         with:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
         continue-on-error: true
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
 
       - name: Build renderer
         run: pnpm build
@@ -84,29 +88,66 @@ jobs:
         run: pnpm tsc -p electron/tsconfig.json
 
       - name: Package Electron app
-        run: pnpm electron-builder --publish never
+        run: pnpm electron-builder --${{ matrix.platform }} --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.os == 'macos-latest' && secrets.MACOS_CERTIFICATE != '' && 'true' || 'false' }}
-          CSC_LINK: ""
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Create GitHub Release & upload binaries
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Tesserin ${{ github.ref_name }}
-          draft: false
-          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
-          files: |
+          name: release-${{ matrix.platform }}
+          path: |
             release/*.dmg
+            release/*.zip
             release/*.exe
             release/*.AppImage
             release/*.deb
-            release/*.rpm
+          retention-days: 7
+          if-no-files-found: error
+
+  # ─────────────────────────────────────────────────────────────
+  # Create GitHub Release with all platform artifacts
+  # ─────────────────────────────────────────────────────────────
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la artifacts/
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tag=v${{ inputs.version }}" >> $GITHUB_OUTPUT
+            echo "name=Tesserin v${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "name=Tesserin ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.name }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.tag, 'beta') || contains(steps.version.outputs.tag, 'alpha') }}
+          generate_release_notes: true
+          files: artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

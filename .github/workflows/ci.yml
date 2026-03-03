@@ -6,6 +6,8 @@ name: CI
 on:
   push:
     branches: [main, dev]
+    tags-ignore:
+      - 'v*'  # Don't run CI on release tags (release.yml handles those)
   pull_request:
     branches: [main]
 
@@ -14,10 +16,59 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build & Type-check
+  # ─────────────────────────────────────────────────────────────
+  # Job 1: Quick checks (type-check, lint, tests)
+  # ─────────────────────────────────────────────────────────────
+  check:
+    name: Type-check & Test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Type-check renderer
+        run: pnpm tsc --noEmit
+
+      - name: Type-check electron main
+        run: pnpm tsc -p electron/tsconfig.json --noEmit
+
+      - name: Run tests
+        run: pnpm test
+
+  # ─────────────────────────────────────────────────────────────
+  # Job 2: Build verification on all platforms
+  # ─────────────────────────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.os }})
+    needs: check
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: win
 
     steps:
       - name: Checkout
@@ -39,8 +90,10 @@ jobs:
       - name: Build renderer
         run: pnpm build
 
-      - name: Run tests
-        run: pnpm test
-
-      - name: Build electron main
+      - name: Build Electron main process
         run: pnpm tsc -p electron/tsconfig.json
+
+      - name: Package Electron app (dry-run)
+        run: pnpm electron-builder --publish never --${{ matrix.platform }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
