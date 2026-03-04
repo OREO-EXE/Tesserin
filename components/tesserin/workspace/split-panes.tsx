@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useCallback, useRef, useEffect } from "react"
-import { FiColumns, FiX, FiArrowRight, FiArrowDown } from "react-icons/fi"
+import { FiX, FiArrowRight, FiArrowDown } from "react-icons/fi"
 
 /**
  * Universal Split Panes
