@@ -169,10 +169,7 @@ export function LeftDock({
                   <item.icon size={20} className="flex-shrink-0" />
                 </AnimatedIcon>
                 {expanded && (
-                  <span
-                    className="text-sm font-medium whitespace-nowrap overflow-hidden"
-                    style={{ color: isActive ? "var(--accent-primary)" : "var(--text-secondary)" }}
-                  >
+                  <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
                     {item.label}
                   </span>
                 )}

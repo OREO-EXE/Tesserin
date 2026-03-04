@@ -48,6 +48,16 @@ import { useMcp, type McpServerConfig } from "@/lib/mcp-client"
 import { useTesserinTheme } from "@/components/tesserin/core/theme-provider"
 import { usePlugins, pluginRegistry } from "@/lib/plugin-system"
 import { usePluginAPI } from "@/components/tesserin/core/plugin-provider"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { CommunityPluginsPanel } from "@/components/tesserin/panels/community-plugins-panel"
 import { ThemesPanel } from "@/components/tesserin/panels/theme-panel"
 import {
@@ -372,6 +382,7 @@ export function SettingsPanel() {
   const createAPI = usePluginAPI()
   const [activeSection, setActiveSection] = useState<SectionId>("general")
   const [settings, setSettings] = useState<SettingsValues>({ ...DEFAULTS })
+  const [initialSettings, setInitialSettings] = useState<SettingsValues>({ ...DEFAULTS })
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -426,6 +437,20 @@ export function SettingsPanel() {
   // Shortcuts state (hoisted from renderShortcuts to avoid conditional hook calls)
   const [customShortcuts, setCustomShortcuts] = useState<Record<string, string>>({})
   const [capturing, setCapturing] = useState<string | null>(null)
+
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+    destructive?: boolean;
+  }>({
+    isOpen: false,
+    title: "",
+    description: "",
+    onConfirm: () => {},
+  })
 
   // Load plugin enabled states from localStorage
   // Core plugins default to true (enabled), others default to their current enabled state
@@ -491,6 +516,14 @@ export function SettingsPanel() {
     loadCustomShortcuts().then(setCustomShortcuts)
   }, [])
 
+  // Deep check for dirty state
+  useEffect(() => {
+    const isDirty = (Object.keys(settings) as SettingKey[]).some(
+      (key) => settings[key] !== initialSettings[key]
+    )
+    setDirty(isDirty)
+  }, [settings, initialSettings])
+
   // Keyboard capture for shortcut remapping
   useEffect(() => {
     if (!capturing) return
@@ -517,6 +550,7 @@ export function SettingsPanel() {
         if (val !== null) (loaded as Record<string, string>)[key] = val
       }
       setSettings((prev) => ({ ...prev, ...loaded }))
+      setInitialSettings((prev) => ({ ...prev, ...loaded }))
     }
     load()
   }, [])
@@ -524,7 +558,6 @@ export function SettingsPanel() {
   /* ---- Update a single setting ---- */
   const update = useCallback((key: SettingKey, value: string) => {
     setSettings((prev) => ({ ...prev, [key]: value }))
-    setDirty(true)
     setSaved(false)
     if (key === "appearance.theme") {
       setTheme(value)
@@ -544,12 +577,20 @@ export function SettingsPanel() {
   const saveSettings = useCallback(async () => {
     setSaving(true)
     try {
-      for (const [key, value] of Object.entries(settings)) {
-        await setSetting(key, value)
-      }
-      setDirty(false)
+      // Parallelize setting updates for speed
+      await Promise.all(
+        Object.entries(settings).map(([key, value]) => setSetting(key, value))
+      )
+      
+      setInitialSettings({ ...settings })
       setSaved(true)
+      
+      // Dispatch a global event so other parts of the app can react to setting changes
+      window.dispatchEvent(new CustomEvent('tesserin:settings-updated', { detail: settings }))
+
       setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      console.error("Failed to save settings:", err)
     } finally {
       setSaving(false)
     }
@@ -567,7 +608,6 @@ export function SettingsPanel() {
       }
       return next
     })
-    setDirty(true)
     setSaved(false)
   }, [activeSection])
 
@@ -617,9 +657,16 @@ export function SettingsPanel() {
 
   /* ---- Clear all data ---- */
   const clearAllData = useCallback(() => {
-    if (!confirm("⚠️ This will permanently delete ALL notes, tasks, canvases, and settings. This cannot be undone.\n\nAre you sure?")) return
-    localStorage.clear()
-    window.location.reload()
+    setConfirmModal({
+      isOpen: true,
+      title: "Clear All Data",
+      description: "⚠️ This will permanently delete ALL notes, tasks, canvases, and settings. This cannot be undone.\n\nAre you sure?",
+      destructive: true,
+      onConfirm: () => {
+        localStorage.clear()
+        window.location.reload()
+      }
+    })
   }, [])
 
   /* ---- Export vault ---- */
@@ -1592,10 +1639,19 @@ export function SettingsPanel() {
 
   const deleteApiKeyHandler = useCallback(async (id: string) => {
     if (typeof window === "undefined" || !window.tesserin?.api) return
-    if (!confirm("Delete this API key permanently?")) return
-    await window.tesserin.api.keys.delete(id)
-    const keys = await window.tesserin.api.keys.list()
-    setApiKeys(keys)
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete API Key",
+      description: "Delete this API key permanently?",
+      destructive: true,
+      onConfirm: async () => {
+        if (window.tesserin?.api) {
+          await window.tesserin.api.keys.delete(id)
+          const keys = await window.tesserin.api.keys.list()
+          setApiKeys(keys)
+        }
+      }
+    })
   }, [])
 
   const toggleApiServer = useCallback(async () => {
@@ -2017,14 +2073,23 @@ export function SettingsPanel() {
 
   const removeAgent = useCallback(async (agentId: string) => {
     if (typeof window === "undefined" || !window.tesserin?.agents) return
-    if (!confirm("Remove this cloud agent?")) return
-    try {
-      await window.tesserin.agents.remove(agentId)
-      setAgentExpandedId(null)
-      await loadAgents()
-    } catch (err) {
-      console.error("[Agents] Failed to remove:", err)
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Remove Cloud Agent",
+      description: "Remove this cloud agent?",
+      destructive: true,
+      onConfirm: async () => {
+        if (window.tesserin?.agents) {
+          try {
+            await window.tesserin.agents.remove(agentId)
+            setAgentExpandedId(null)
+            await loadAgents()
+          } catch (err) {
+            console.error("[Agents] Failed to remove:", err)
+          }
+        }
+      }
+    })
   }, [loadAgents])
 
   const createAgentToken = useCallback(async (agentId: string) => {
@@ -2706,10 +2771,11 @@ curl http://127.0.0.1:${apiServerStatus.port}/api/knowledge/graph \\
           <button
             onClick={saveSettings}
             disabled={!dirty || saving}
-            className="skeuo-btn px-4 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-2 hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className={`skeuo-btn px-4 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed ${dirty ? "active animate-pulse" : "hover:brightness-110"}`}
             style={{
-              backgroundColor: dirty ? "var(--accent-primary)" : undefined,
-              color: dirty ? "var(--text-on-accent)" : "var(--text-tertiary)",
+              backgroundColor: dirty ? "var(--accent-primary)" : "var(--bg-panel-inset)",
+              color: dirty ? "var(--text-on-accent)" : "var(--text-secondary)",
+              boxShadow: dirty ? "0 0 15px var(--accent-primary), var(--input-inner-shadow)" : "var(--btn-shadow)",
             }}
           >
             {saving ? (
@@ -2727,6 +2793,33 @@ curl http://127.0.0.1:${apiServerStatus.port}/api/knowledge/graph \\
           {sectionContent}
         </div>
       </div>
+
+      {/* Global Confirmation Modal */}
+      <AlertDialog 
+        open={confirmModal.isOpen} 
+        onOpenChange={(open) => setConfirmModal(prev => ({ ...prev, isOpen: open }))}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmModal.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmModal.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                confirmModal.onConfirm()
+                setConfirmModal(prev => ({ ...prev, isOpen: false }))
+              }}
+              className={confirmModal.destructive ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

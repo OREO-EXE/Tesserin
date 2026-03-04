@@ -418,12 +418,16 @@ export function ThemesPanel() {
 
   const categories: ThemeCategory[] = ["all", "dark", "light", "monochrome", "brutalism", "glass", "clay", "retro", "pastel", "colorful", "minimal", "warm", "cool"]
 
-  const installedThemes = useMemo(() => {
-    return ALL_THEMES.filter((t) => isThemeInstalled(t.id))
+  const installedCount = useMemo(() => {
+    return ALL_THEMES.filter((t) => isThemeInstalled(t.id)).length
   }, [installedIds])
 
-  const browseThemes = useMemo(() => {
-    let list = COMMUNITY_THEMES
+  const displayThemes = useMemo(() => {
+    const baseList = activeTab === "installed"
+      ? ALL_THEMES.filter((t) => isThemeInstalled(t.id))
+      : COMMUNITY_THEMES
+
+    let list = baseList
     if (category !== "all") {
       if (category === "dark" || category === "light") {
         list = list.filter((t) => t.mode === category)
@@ -440,9 +444,7 @@ export function ThemesPanel() {
       )
     }
     return list
-  }, [category, search])
-
-  const displayThemes = activeTab === "installed" ? installedThemes : browseThemes
+  }, [activeTab, category, search, installedIds])
 
   // --- Render ---
 
@@ -461,7 +463,7 @@ export function ThemesPanel() {
                 color: activeTab === tab ? "var(--text-on-accent)" : "var(--text-tertiary)",
               }}
             >
-              {tab === "installed" ? `Installed (${installedThemes.length})` : "Browse Community"}
+              {tab === "installed" ? `Installed (${installedCount})` : "Browse Community"}
             </button>
           ))}
         </div>

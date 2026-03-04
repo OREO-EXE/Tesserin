@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useCallback } from "react"
+import React, { useState, useCallback, useRef } from "react"
 import {
   FiFileText, FiCode, FiFile, FiCopy, FiCheck,
   FiPrinter, FiBook, FiGlobe, FiPackage, FiChevronDown, FiX,
@@ -218,9 +218,13 @@ export function ExportPanel({ isOpen, onClose, note }: ExportPanelProps) {
   const { notes, addNote, folders, createFolder } = useNotes()
   const [exported, setExported] = useState<string | null>(null)
   const [imported, setImported] = useState<number | null>(null)
+  const [lastImportedFormat, setLastImportedFormat] = useState<string | null>(null)
   const [batchFormat, setBatchFormat] = useState<ExportFormat>("markdown")
   const [showBatchMenu, setShowBatchMenu] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const vaultInputRef = useRef<HTMLInputElement>(null)
 
   const exportNote = useCallback(
     (format: ExportFormat) => {
@@ -315,7 +319,7 @@ export function ExportPanel({ isOpen, onClose, note }: ExportPanelProps) {
     setTimeout(() => setExported(null), 2000)
   }, [notes, batchFormat])
 
-  const handleImportMarkdown = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
 
@@ -323,8 +327,23 @@ export function ExportPanel({ isOpen, onClose, note }: ExportPanelProps) {
     for (const file of Array.from(files)) {
       try {
         const text = await file.text()
-        const title = file.name.replace(/\.md$/i, "")
-        addNote(title, text)
+        let title = file.name.replace(/\.[^/.]+$/, "")
+        let content = text
+
+        if (file.name.endsWith(".html") || file.name.endsWith(".htm")) {
+          const doc = new DOMParser().parseFromString(text, "text/html")
+          content = doc.body.innerText || text
+        } else if (file.name.endsWith(".json")) {
+          try {
+            const data = JSON.parse(text)
+            if (data.title && data.content) {
+              title = data.title
+              content = data.content
+            }
+          } catch {}
+        }
+
+        addNote(title, content)
         count++
       } catch (err) {
         console.error("Failed to import", file.name, err)
@@ -335,7 +354,7 @@ export function ExportPanel({ isOpen, onClose, note }: ExportPanelProps) {
     if (e.target) e.target.value = ""
   }
 
-  const handleImportVault = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportTesserinVault = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -347,14 +366,19 @@ export function ExportPanel({ isOpen, onClose, note }: ExportPanelProps) {
           addNote(n.title, n.content)
         })
         setImported(data.notes.length)
+        setLastImportedFormat("json-vault")
       } else if (data && data.title && data.content) {
         addNote(data.title, data.content)
         setImported(1)
+        setLastImportedFormat("json-vault")
       }
     } catch (err) {
       console.error("Failed to import vault", err)
     }
-    setTimeout(() => setImported(null), 3000)
+    setTimeout(() => {
+      setImported(null)
+      setLastImportedFormat(null)
+    }, 3000)
     if (e.target) e.target.value = ""
   }
 
@@ -407,8 +431,24 @@ export function ExportPanel({ isOpen, onClose, note }: ExportPanelProps) {
     }
     
     setImported(count)
-    setTimeout(() => setImported(null), 3000)
+    setLastImportedFormat("obsidian")
+    setTimeout(() => {
+      setImported(null)
+      setLastImportedFormat(null)
+    }, 3000)
     if (e.target) e.target.value = ""
+  }
+
+  const triggerFileImport = (accept: string, formatId: string) => {
+    if (fileInputRef.current) {
+      fileInputRef.current.accept = accept
+      fileInputRef.current.onchange = (e: any) => {
+        handleImportFiles(e)
+        setLastImportedFormat(formatId)
+        setTimeout(() => setLastImportedFormat(null), 2000)
+      }
+      fileInputRef.current.click()
+    }
   }
 
   const handleDrop = async (e: React.DragEvent) => {
@@ -419,9 +459,9 @@ export function ExportPanel({ isOpen, onClose, note }: ExportPanelProps) {
 
     let count = 0
     for (const file of files) {
-      if (file.name.endsWith(".md")) {
+      if (file.name.endsWith(".md") || file.name.endsWith(".txt") || file.name.endsWith(".tex")) {
         const text = await file.text()
-        const title = file.name.replace(/\.md$/i, "")
+        const title = file.name.replace(/\.[^/.]+$/, "")
         addNote(title, text)
         count++
       } else if (file.name.endsWith(".json")) {
@@ -436,6 +476,12 @@ export function ExportPanel({ isOpen, onClose, note }: ExportPanelProps) {
             count++
           }
         } catch {}
+      } else if (file.name.endsWith(".html") || file.name.endsWith(".htm")) {
+        const text = await file.text()
+        const doc = new DOMParser().parseFromString(text, "text/html")
+        const title = file.name.replace(/\.[^/.]+$/, "")
+        addNote(title, doc.body.innerText || text)
+        count++
       }
     }
     if (count > 0) {
@@ -459,6 +505,20 @@ export function ExportPanel({ isOpen, onClose, note }: ExportPanelProps) {
     { id: "docx",     label: "DOCX",     desc: "Word XML", icon: <FiFile size={14} /> },
     { id: "txt",      label: "Plain Text", desc: ".txt", icon: <FiCode size={14} /> },
     { id: "json",     label: "JSON",     desc: "Structured data", icon: <FiCopy size={14} /> },
+  ]
+
+  const importFormats: Array<{
+    id: string
+    label: string
+    desc: string
+    icon: React.ReactNode
+    accept: string
+  }> = [
+    { id: "markdown", label: "Markdown", desc: ".md", icon: <FiFileText size={14} />, accept: ".md" },
+    { id: "html",     label: "HTML",     desc: ".html", icon: <FiGlobe size={14} />, accept: ".html,.htm" },
+    { id: "latex",    label: "LaTeX",    desc: ".tex", icon: <FiBook size={14} />, accept: ".tex" },
+    { id: "txt",      label: "Plain Text", desc: ".txt", icon: <FiCode size={14} />, accept: ".txt" },
+    { id: "json",     label: "JSON / Note", desc: ".json", icon: <FiCopy size={14} />, accept: ".json" },
   ]
 
   return (
@@ -591,71 +651,83 @@ export function ExportPanel({ isOpen, onClose, note }: ExportPanelProps) {
           </TabsContent>
 
           <TabsContent value="import" className="m-0">
-            <div className="py-2">
-              {/* Import Markdown */}
-              <label className="w-full flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-panel-inset group">
-                <input
-                  type="file"
-                  multiple
-                  accept=".md"
-                  className="hidden"
-                  onChange={handleImportMarkdown}
-                />
-                <span style={{ color: "var(--text-tertiary)" }}>
-                  <FiFilePlus size={14} className="group-hover:text-primary transition-colors" />
-                </span>
-                <div className="flex-1">
-                  <div className="text-sm" style={{ color: "var(--text-primary)" }}>Import Markdown</div>
-                  <div className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>Select .md files</div>
-                </div>
-                {imported && imported > 0 && <FiCheck size={13} className="text-green-500 shrink-0" />}
-              </label>
-
-              {/* Import Vault */}
-              <label className="w-full flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-panel-inset group">
-                <input
-                  type="file"
-                  accept=".json"
-                  className="hidden"
-                  onChange={handleImportVault}
-                />
-                <span style={{ color: "var(--text-tertiary)" }}>
-                  <FiUpload size={14} className="group-hover:text-primary transition-colors" />
-                </span>
-                <div className="flex-1">
-                  <div className="text-sm" style={{ color: "var(--text-primary)" }}>Import Tesserin Archive</div>
-                  <div className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>Select .json backup</div>
-                </div>
-                {imported && imported > 0 && <FiCheck size={13} className="text-green-500 shrink-0" />}
-              </label>
-
-              {/* Import Obsidian Vault */}
-              <label className="w-full flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-panel-inset group">
-                <input
-                  type="file"
-                  webkitdirectory=""
-                  directory=""
-                  {...({ webkitdirectory: "", directory: "" } as any)}
-                  className="hidden"
-                  onChange={handleImportObsidian}
-                />
-                <span style={{ color: "var(--text-tertiary)" }}>
-                  <FiFolder size={14} className="group-hover:text-primary transition-colors" />
-                </span>
-                <div className="flex-1">
-                  <div className="text-sm" style={{ color: "var(--text-primary)" }}>Import Obsidian Vault</div>
-                  <div className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>Select vault folder (maintains structure)</div>
-                </div>
-                {imported && imported > 0 && <FiCheck size={13} className="text-green-500 shrink-0" />}
-              </label>
-
-              {imported && (
-                <div className="px-4 py-2 text-[11px] text-green-500 bg-green-500/10 mx-4 my-2 rounded-lg flex items-center gap-2">
-                  <FiCheck size={12} />
-                  Successfully imported {imported} {imported === 1 ? "note" : "notes"}
-                </div>
-              )}
+            <div className="py-1">
+              {importFormats.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => triggerFileImport(f.accept, f.id)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors"
+                  style={{ color: "var(--text-primary)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-panel-inset)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
+                  <span style={{ color: "var(--text-tertiary)" }}>{f.icon}</span>
+                  <span className="flex-1 text-sm">{f.label}</span>
+                  <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>{f.desc}</span>
+                  {lastImportedFormat === f.id && <FiCheck size={13} className="text-green-500 shrink-0" />}
+                </button>
+              ))}
             </div>
+
+            {/* Hidden Input for Files */}
+            <input type="file" multiple className="hidden" ref={fileInputRef} />
+
+            {/* Divider */}
+            <div className="h-px mx-4" style={{ backgroundColor: "var(--border-dark)" }} />
+
+            {/* Vault import */}
+            <div className="px-4 py-3 flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const input = vaultInputRef.current
+                  if (input) {
+                    ;(input as any).webkitdirectory = true
+                    ;(input as any).directory = true
+                    input.onchange = handleImportObsidian as any
+                    input.click()
+                  }
+                }}
+                className="flex-1 flex items-center gap-2 text-sm py-1.5 transition-colors"
+                style={{ color: "var(--text-secondary)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
+              >
+                <FiFolder size={14} />
+                Import Obsidian
+                {lastImportedFormat === "obsidian" && <FiCheck size={13} className="text-green-500" />}
+              </button>
+              
+              <button
+                onClick={() => {
+                  const input = vaultInputRef.current
+                  if (input) {
+                    ;(input as any).webkitdirectory = false
+                    ;(input as any).directory = false
+                    input.accept = ".json"
+                    input.onchange = handleImportTesserinVault as any
+                    input.click()
+                  }
+                }}
+                className="flex items-center gap-2 text-sm py-1.5 px-3 transition-colors rounded-md"
+                style={{ color: "var(--text-tertiary)", backgroundColor: "var(--bg-panel-inset)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-tertiary)")}
+              >
+                <FiPackage size={14} />
+                Vault JSON
+                {lastImportedFormat === "json-vault" && <FiCheck size={13} className="text-green-500" />}
+              </button>
+
+              {/* Hidden Input for Vaults/Folders */}
+              <input type="file" className="hidden" ref={vaultInputRef} />
+            </div>
+
+            {imported && (
+              <div className="px-4 py-2 text-[11px] text-green-500 bg-green-500/10 mx-4 my-2 rounded-lg flex items-center gap-2">
+                <FiCheck size={12} />
+                Successfully imported {imported} {imported === 1 ? "note" : "notes"}
+              </div>
+            )}
             
             <div className="px-4 py-4 text-center">
               <div 
