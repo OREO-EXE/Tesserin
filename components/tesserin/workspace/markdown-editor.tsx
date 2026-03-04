@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useCallback, useMemo, useRef, useEffect } from "react"
-import { FiEye, FiEdit2, FiPlus, FiTrash2, FiLink2, FiChevronDown, FiFileText, FiClock } from "react-icons/fi"
+import { FiEye, FiEdit2, FiPlus, FiTrash2, FiLink2, FiChevronDown, FiFileText, FiClock, FiMenu } from "react-icons/fi"
 import { useNotes, parseWikiLinks } from "@/lib/notes-store"
 import { renderMarkdown } from "@/lib/markdown-renderer"
 import { SkeuoBadge } from "../core/skeuo-badge"
@@ -33,6 +33,10 @@ interface MarkdownEditorProps {
   onSelectNote?: (id: string) => void
   /** Whether this editor is in a secondary pane */
   isSecondary?: boolean
+  /** Whether the notes sidebar is currently visible (primary pane only) */
+  showSidebar?: boolean
+  /** Callback to toggle the notes sidebar (primary pane only) */
+  onToggleSidebar?: () => void
 }
 
 /**
@@ -52,7 +56,7 @@ interface MarkdownEditorProps {
  * Wiki-links (`[[Note Title]]`) are rendered as clickable accent-colored
  * links. Clicking navigates to (or creates) the target note.
  */
-export function MarkdownEditor({ noteId: propsNoteId, onSelectNote, isSecondary }: MarkdownEditorProps = {}) {
+export function MarkdownEditor({ noteId: propsNoteId, onSelectNote, isSecondary, showSidebar, onToggleSidebar }: MarkdownEditorProps = {}) {
   const {
     notes,
     selectedNoteId,
@@ -232,10 +236,20 @@ export function MarkdownEditor({ noteId: propsNoteId, onSelectNote, isSecondary 
       <div className="flex flex-col h-full">
         {/* Header */}
         <div
-          className="h-12 border-b flex items-center pl-20 pr-6 justify-between shrink-0"
+          className="h-12 border-b flex items-center pl-3 pr-6 justify-between shrink-0"
           style={{ borderColor: "var(--border-dark)", background: "var(--bg-panel)" }}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {onToggleSidebar && (
+              <button
+                onClick={onToggleSidebar}
+                className="skeuo-btn w-7 h-7 flex items-center justify-center rounded-lg"
+                aria-label={showSidebar ? "Hide notes sidebar" : "Show notes sidebar"}
+                title={showSidebar ? "Hide sidebar" : "Show sidebar"}
+              >
+                <FiMenu size={13} style={{ color: showSidebar ? "var(--accent-primary)" : "var(--text-tertiary)" }} />
+              </button>
+            )}
             <FiFileText size={16} style={{ color: "var(--text-tertiary)" }} />
             <span className="text-xs font-semibold tracking-wide uppercase" style={{ color: "var(--text-tertiary)" }}>
               Notes
@@ -283,10 +297,21 @@ export function MarkdownEditor({ noteId: propsNoteId, onSelectNote, isSecondary 
     <div className="flex flex-col h-full">
       {/* Toolbar */}
       <div
-        className={`h-12 border-b flex items-center ${isSecondary ? 'pl-3' : 'pl-20'} pr-4 gap-2 shrink-0`}
+        className={`h-12 border-b flex items-center pl-3 pr-4 gap-2 shrink-0`}
         style={{ borderColor: "var(--border-dark)", background: "var(--bg-panel)" }}
       >
-        {/* Note switcher */}
+        {/* Sidebar toggle — primary pane only */}
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            className="skeuo-btn w-7 h-7 flex items-center justify-center rounded-lg flex-shrink-0"
+            aria-label={showSidebar ? "Hide notes sidebar" : "Show notes sidebar"}
+            title={showSidebar ? "Hide sidebar" : "Show sidebar"}
+          >
+            <FiMenu size={13} style={{ color: showSidebar ? "var(--accent-primary)" : "var(--text-tertiary)" }} />
+          </button>
+        )}
+        {/* Note switcher */}}
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setShowNoteList(!showNoteList)}
