@@ -10,6 +10,7 @@ const database_1 = require("./database");
 const mcp_server_1 = require("./mcp-server");
 const api_server_1 = require("./api-server");
 const cloud_agents_1 = require("./cloud-agents");
+const updater_1 = require("./updater");
 // ── Global error handlers ───────────────────────────────────────
 // Prevent the main process from crashing silently on unhandled errors.
 process.on('uncaughtException', (error) => {
@@ -172,6 +173,10 @@ electron_1.app.whenReady().then(() => {
     }
     // Create the main window
     createWindow();
+    // ── Auto-updater (production only) ─────────────────────────────────
+    if (!isDev) {
+        (0, updater_1.setupAutoUpdater)(mainWindow);
+    }
     // ── Super+Arrow window snapping ──────────────────────────────────
     // GNOME/KDE intercept Super+Arrow at the compositor level so frameless
     // windows never receive them. globalShortcut registers at OS level so

@@ -205,6 +205,20 @@ const tesserinAPI = {
     offCanvasUpdated: (handler) => {
         electron_1.ipcRenderer.removeListener('canvas:updated', handler);
     },
+    // ── Auto-updater ──────────────────────────────────────────────────
+    updater: {
+        check: () => electron_1.ipcRenderer.invoke('updater:check'),
+        download: () => electron_1.ipcRenderer.invoke('updater:download'),
+        install: () => electron_1.ipcRenderer.invoke('updater:install'),
+        onStatus: (callback) => {
+            const handler = (_e, status) => callback(status);
+            electron_1.ipcRenderer.on('updater:status', handler);
+            return handler;
+        },
+        offStatus: (handler) => {
+            electron_1.ipcRenderer.removeListener('updater:status', handler);
+        },
+    },
 };
 electron_1.contextBridge.exposeInMainWorld('tesserin', tesserinAPI);
 //# sourceMappingURL=preload.js.map

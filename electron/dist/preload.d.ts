@@ -219,6 +219,13 @@ declare const tesserinAPI: {
     };
     onCanvasUpdated: (callback: (canvasId: string) => void) => (_e: Electron.IpcRendererEvent, canvasId: string) => void;
     offCanvasUpdated: (handler: (...args: any[]) => void) => void;
+    updater: {
+        check: () => Promise<any>;
+        download: () => Promise<any>;
+        install: () => Promise<any>;
+        onStatus: (callback: (status: unknown) => void) => (_e: Electron.IpcRendererEvent, status: unknown) => void;
+        offStatus: (handler: (...args: any[]) => void) => void;
+    };
 };
 export type TesserinAPI = typeof tesserinAPI;
 export {};
