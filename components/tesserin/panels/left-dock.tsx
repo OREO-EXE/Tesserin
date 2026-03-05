@@ -66,6 +66,7 @@ interface LeftDockProps {
 const TAB_FEATURE_MAP: Record<string, string> = {
   canvas: "features.canvas",
   graph: "features.graph",
+  terminal: "features.terminal",
 }
 
 export function LeftDock({

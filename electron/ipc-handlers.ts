@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog, BrowserWindow, shell as electronShell } from 'electron'
 import * as db from './database'
 import * as ai from './ai-service'
 import * as kb from './knowledge-base'
@@ -595,8 +595,71 @@ export function registerIpcHandlers(): void {
     const ptyProcesses = new Map<string, pty.IPty>()
     const ptyDataHandlerRegistered = new Set<string>()
 
-    ipcMain.handle('terminal:spawn', (_e, id: string, cwd?: string) => {
-        const shell = os.platform() === 'win32' ? 'powershell.exe' : process.env.SHELL || '/bin/bash'
+    ipcMain.handle('terminal:openExternal', (_e, url: string) => {
+        // Only allow http/https URLs to prevent protocol abuse
+        if (!/^https?:\/\//.test(url)) return false
+        electronShell.openExternal(url)
+        return true
+    })
+
+    ipcMain.handle('terminal:getShells', async () => {
+        const platform = os.platform()
+        const shells: { name: string; path: string }[] = []
+
+        if (platform === 'win32') {
+            const candidates = [
+                { name: 'PowerShell Core', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' },
+                { name: 'PowerShell',      path: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' },
+                { name: 'Command Prompt', path: 'C:\\Windows\\System32\\cmd.exe' },
+                { name: 'WSL',            path: 'C:\\Windows\\System32\\wsl.exe' },
+            ]
+            for (const c of candidates) {
+                if (fs.existsSync(c.path)) shells.push(c)
+            }
+        } else {
+            // Seed with $SHELL first so the user's preferred shell is the default
+            const envShell = process.env.SHELL
+            if (envShell && fs.existsSync(envShell)) {
+                shells.push({ name: `${path.basename(envShell)} (default)`, path: envShell })
+            }
+            // Parse /etc/shells for additional options
+            try {
+                const shellNames: Record<string, string> = {
+                    bash: 'Bash', zsh: 'Zsh', fish: 'Fish', sh: 'sh',
+                    dash: 'Dash', ksh: 'KSH', tcsh: 'TCSH', nu: 'Nushell',
+                }
+                const lines = fs.readFileSync('/etc/shells', 'utf8').split('\n')
+                for (const line of lines) {
+                    const sp = line.trim()
+                    if (!sp.startsWith('/') || sp.startsWith('#')) continue
+                    if (shells.some(s => s.path === sp)) continue   // already added
+                    shells.push({ name: shellNames[path.basename(sp)] || path.basename(sp), path: sp })
+                }
+            } catch {
+                // /etc/shells not available — add common fallbacks
+                for (const sp of ['/bin/zsh', '/bin/bash', '/bin/sh']) {
+                    if (fs.existsSync(sp) && !shells.some(s => s.path === sp)) {
+                        shells.push({ name: path.basename(sp), path: sp })
+                    }
+                }
+            }
+        }
+
+        return shells.length > 0
+            ? shells
+            : [{ name: platform === 'win32' ? 'PowerShell' : 'bash', path: platform === 'win32' ? 'powershell.exe' : '/bin/bash' }]
+    })
+
+    ipcMain.handle('terminal:spawn', (_e, id: string, cwd?: string, shellPath?: string) => {
+        // Check if process already exists for this ID
+        const existing = ptyProcesses.get(id)
+        if (existing) {
+            console.log(`[Terminal] Reusing existing process for ${id} (PID: ${existing.pid})`)
+            return { success: true, pid: existing.pid, reconnected: true }
+        }
+
+        const defaultShell = os.platform() === 'win32' ? 'powershell.exe' : process.env.SHELL || '/bin/bash'
+        const shell = shellPath || defaultShell
         const workingDir = cwd || os.homedir()
 
         try {
@@ -608,8 +671,10 @@ export function registerIpcHandlers(): void {
                 env: safeEnv() as { [key: string]: string },
             })
             ptyProcesses.set(id, ptyProcess)
+            console.log(`[Terminal] Created new process for ${id} (PID: ${ptyProcess.pid})`)
             return { success: true, pid: ptyProcess.pid }
         } catch (err) {
+            console.error(`[Terminal] Failed to spawn for ${id}:`, err)
             return { success: false, error: String(err) }
         }
     })

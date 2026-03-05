@@ -222,10 +222,12 @@ const tesserinAPI = {
     },
     // ── Terminal (PTY) ──────────────────────────────────────────────────
     terminal: {
-        spawn: (id, cwd) => electron_1.ipcRenderer.invoke('terminal:spawn', id, cwd),
+        spawn: (id, cwd, shell) => electron_1.ipcRenderer.invoke('terminal:spawn', id, cwd, shell),
         write: (id, data) => electron_1.ipcRenderer.invoke('terminal:write', id, data),
         resize: (id, cols, rows) => electron_1.ipcRenderer.invoke('terminal:resize', id, cols, rows),
         kill: (id) => electron_1.ipcRenderer.invoke('terminal:kill', id),
+        openExternal: (url) => electron_1.ipcRenderer.invoke('terminal:openExternal', url),
+        getShells: () => electron_1.ipcRenderer.invoke('terminal:getShells'),
         onData: (id, callback) => {
             electron_1.ipcRenderer.send('terminal:data', id);
             const handler = (_e, termId, data) => {

@@ -37,6 +37,7 @@ import {
   FiCompass,
   FiClock,
   FiDroplet,
+  FiTerminal,
 } from "react-icons/fi"
 import {
   HiOutlineCpuChip,
@@ -121,6 +122,7 @@ interface SettingsValues {
   // Features — toggle workspace tabs & panels on/off
   "features.canvas": string
   "features.graph": string
+  "features.terminal": string
   "features.statusBar": string
   "features.backlinks": string
   "features.versionHistory": string
@@ -172,6 +174,7 @@ const DEFAULTS: SettingsValues = {
 
   "features.canvas": "true",
   "features.graph": "true",
+  "features.terminal": "true",
   "features.statusBar": "true",
   "features.backlinks": "true",
   "features.versionHistory": "true",
@@ -2583,6 +2586,7 @@ curl http://127.0.0.1:${apiServerStatus.port}/api/knowledge/graph \\
     const FEATURE_ITEMS: { key: SettingKey; label: string; description: string; icon: React.ReactNode }[] = [
       { key: "features.canvas", label: "Canvas", description: "Infinite whiteboard for visual thinking and diagrams.", icon: <FiCompass size={14} /> },
       { key: "features.graph", label: "Graph View", description: "Interactive knowledge graph visualizing note connections.", icon: <HiOutlineCpuChip size={14} /> },
+      { key: "features.terminal", label: "Terminal", description: "Built-in terminal for running commands and interacting with MCP cloud agents.", icon: <FiTerminal size={14} /> },
       { key: "features.statusBar", label: "Status Bar", description: "Bottom bar showing tips and plugin widgets.", icon: <FiMonitor size={14} /> },
       { key: "features.backlinks", label: "Backlinks Panel", description: "See which notes link to the current note.", icon: <FiLink size={14} /> },
       { key: "features.versionHistory", label: "Version History", description: "Track and restore previous versions of notes.", icon: <FiClock size={14} /> },
