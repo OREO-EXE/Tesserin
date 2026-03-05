@@ -270,6 +270,27 @@ const tesserinAPI = {
             ipcRenderer.removeListener('updater:status', handler)
         },
     },
+
+    // ── Terminal (PTY) ──────────────────────────────────────────────────
+    terminal: {
+        spawn: (id: string, cwd?: string, shell?: string) => ipcRenderer.invoke('terminal:spawn', id, cwd, shell) as Promise<{ success: boolean; pid?: number; error?: string; reconnected?: boolean }>,
+        write: (id: string, data: string) => ipcRenderer.invoke('terminal:write', id, data) as Promise<boolean>,
+        resize: (id: string, cols: number, rows: number) => ipcRenderer.invoke('terminal:resize', id, cols, rows) as Promise<boolean>,
+        kill: (id: string) => ipcRenderer.invoke('terminal:kill', id) as Promise<boolean>,
+        openExternal: (url: string) => ipcRenderer.invoke('terminal:openExternal', url) as Promise<boolean>,
+        getShells: () => ipcRenderer.invoke('terminal:getShells') as Promise<Array<{ name: string; path: string }>>,
+        onData: (id: string, callback: (data: string) => void) => {
+            ipcRenderer.send('terminal:data', id)
+            const handler = (_e: Electron.IpcRendererEvent, termId: string, data: string) => {
+                if (termId === id) callback(data)
+            }
+            ipcRenderer.on('terminal:data', handler)
+            return handler
+        },
+        offData: (handler: (...args: any[]) => void) => {
+            ipcRenderer.removeListener('terminal:data', handler)
+        },
+    },
 }
 
 contextBridge.exposeInMainWorld('tesserin', tesserinAPI)
