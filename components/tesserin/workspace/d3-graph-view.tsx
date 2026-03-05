@@ -6,7 +6,6 @@ import { FiZoomIn, FiZoomOut, FiMaximize, FiActivity, FiGitBranch, FiTarget, FiP
 import { useNotes, type GraphNode, type GraphLink } from "@/lib/notes-store"
 import { TesserinLogo } from "../core/tesserin-logo"
 import { TesseradrawLogo } from "./tesseradraw-logo"
-import "@excalidraw/excalidraw/index.css"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -1037,7 +1036,7 @@ export function D3GraphView({ onNavigate }: { onNavigate?: (tabId: any) => void 
         {/* Empty State — matches Tesseradraw WelcomeScreen style */}
         {graph.nodes.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="flex flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-700">
+            <div className="flex flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-700 excalidraw">
               <TesseradrawLogo size={120} animated />
               <h1
                 className="mt-6 mb-2"

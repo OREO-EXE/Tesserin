@@ -7,6 +7,7 @@ import { LoadingScreen } from "@/components/tesserin/core/loading-screen"
 import { TitleBar } from "@/components/tesserin/core/title-bar"
 import { PluginProvider, StatusBar } from "@/components/tesserin/core/plugin-provider"
 import { OnboardingWelcome, useOnboarding, ONBOARDING_SAMPLE_CONTENT } from "@/components/tesserin/core/onboarding"
+import "@excalidraw/excalidraw/index.css"
 
 // Panels
 import { LeftDock, type TabId } from "@/components/tesserin/panels/left-dock"
