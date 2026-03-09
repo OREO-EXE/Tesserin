@@ -1,0 +1,29 @@
+{
+  "name": "tesserin-mcp",
+  "version": "1.0.0",
+  "description": "Standalone Node.js MCP server for Tesserin — no Docker, no Python, no Electron build required",
+  "author": "Anvin <gooseinteandi@gmail.com>",
+  "license": "MIT",
+  "bin": {
+    "tesserin-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "node --experimental-strip-types build.ts",
+    "start": "node dist/index.js",
+    "dev": "node --watch dist/index.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["mcp", "tesserin", "notes", "knowledge-graph", "ai", "pkm"],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "@types/node": "^22"
+  }
+}

@@ -220,6 +220,27 @@ const tesserinAPI = {
             electron_1.ipcRenderer.removeListener('updater:status', handler);
         },
     },
+    // ── Terminal (PTY) ──────────────────────────────────────────────────
+    terminal: {
+        spawn: (id, cwd, shell) => electron_1.ipcRenderer.invoke('terminal:spawn', id, cwd, shell),
+        write: (id, data) => electron_1.ipcRenderer.invoke('terminal:write', id, data),
+        resize: (id, cols, rows) => electron_1.ipcRenderer.invoke('terminal:resize', id, cols, rows),
+        kill: (id) => electron_1.ipcRenderer.invoke('terminal:kill', id),
+        openExternal: (url) => electron_1.ipcRenderer.invoke('terminal:openExternal', url),
+        getShells: () => electron_1.ipcRenderer.invoke('terminal:getShells'),
+        onData: (id, callback) => {
+            electron_1.ipcRenderer.send('terminal:data', id);
+            const handler = (_e, termId, data) => {
+                if (termId === id)
+                    callback(data);
+            };
+            electron_1.ipcRenderer.on('terminal:data', handler);
+            return handler;
+        },
+        offData: (handler) => {
+            electron_1.ipcRenderer.removeListener('terminal:data', handler);
+        },
+    },
 };
 electron_1.contextBridge.exposeInMainWorld('tesserin', tesserinAPI);
 //# sourceMappingURL=preload.js.map

@@ -21,7 +21,14 @@
         "database.ts",
         "ipc-handlers.ts",
         "ai-service.ts",
-        "ppt-generator.ts"
+        "ppt-generator.ts",
+        "mcp-server.ts",
+        "knowledge-base.ts",
+        "api-server.ts",
+        "cloud-agents.ts",
+        "mcp-client.ts",
+        "mermaid-parser.ts",
+        "updater.ts"
     ],
     "exclude": [
         "dist"

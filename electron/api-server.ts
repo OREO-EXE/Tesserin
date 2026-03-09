@@ -248,8 +248,30 @@ const routes: Route[] = [
     method: "GET",
     pattern: "/api/notes",
     permission: "notes:read",
-    handler: async (_req, res) => {
-      const notes = db.listNotes()
+    handler: async (req, res) => {
+      const urlObj = new URL(req.url || "/", "http://localhost")
+      const folderId = urlObj.searchParams.get("folderId")
+      const tag = urlObj.searchParams.get("tag")
+      const limitParam = urlObj.searchParams.get("limit")
+      const sort = urlObj.searchParams.get("sort") || "updated_at"
+      const order = urlObj.searchParams.get("order") || "desc"
+      const limit = Math.min(parseInt(limitParam || "200", 10) || 200, 200)
+
+      let notes = db.listNotes() as any[]
+
+      // Client-side filtering (API-layer convenience)
+      if (folderId) notes = notes.filter((n) => n.folderId === folderId || n.folder_id === folderId)
+      if (tag) notes = notes.filter((n) => (n.tags || []).includes(tag))
+
+      // Sort by the requested field (graceful fallback)
+      const sortField = ["updated_at", "created_at", "title", "updatedAt"].includes(sort) ? sort : "updated_at"
+      notes.sort((a: any, b: any) => {
+        const av: string = a[sortField] || a.updated_at || ""
+        const bv: string = b[sortField] || b.updated_at || ""
+        return order === "asc" ? av.localeCompare(bv) : bv.localeCompare(av)
+      })
+
+      notes = notes.slice(0, limit)
       json(res, 200, { notes })
     },
   },
@@ -307,6 +329,37 @@ const routes: Route[] = [
       if (!existing) return json(res, 404, { error: "Note not found" })
       db.deleteNote(params.id)
       json(res, 200, { message: "Note deleted" })
+    },
+  },
+  {
+    method: "PATCH",
+    pattern: "/api/notes/:id",
+    permission: "notes:write",
+    handler: async (req, res, params) => {
+      const existing = db.getNote(params.id)
+      if (!existing) return json(res, 404, { error: "Note not found" })
+      const body = await parseBody(req)
+      // Only pass fields that are explicitly provided
+      const updates: Record<string, unknown> = {}
+      if (body.title !== undefined) updates.title = body.title
+      if (body.content !== undefined) updates.content = body.content
+      if (body.folderId !== undefined) updates.folderId = body.folderId
+      if (body.isPinned !== undefined) updates.isPinned = body.isPinned
+      if (body.isArchived !== undefined) updates.isArchived = body.isArchived
+      const note = db.updateNote(params.id, updates)
+      json(res, 200, { note })
+    },
+  },
+  // Note tag association
+  {
+    method: "POST",
+    pattern: "/api/notes/:id/tags/:tagId",
+    permission: "notes:write",
+    handler: async (_req, res, params) => {
+      const note = db.getNote(params.id)
+      if (!note) return json(res, 404, { error: "Note not found" })
+      db.addTagToNote(params.id, params.tagId)
+      json(res, 200, { message: "Tag added to note" })
     },
   },
   {
@@ -436,6 +489,17 @@ const routes: Route[] = [
     handler: async (_req, res, params) => {
       db.deleteTask(params.id)
       json(res, 200, { message: "Task deleted" })
+    },
+  },
+  {
+    method: "PATCH",
+    pattern: "/api/tasks/:id",
+    permission: "tasks:write",
+    handler: async (req, res, params) => {
+      const body = await parseBody(req)
+      const task = db.updateTask(params.id, body)
+      if (!task) return json(res, 404, { error: "Task not found" })
+      json(res, 200, { task })
     },
   },
 
@@ -760,6 +824,92 @@ const routes: Route[] = [
       json(res, 200, { canvases })
     },
   },
+  // Canvas CRUD — specific literal patterns must precede the parameterised :id route
+  {
+    method: "POST",
+    pattern: "/api/canvas",
+    permission: "notes:write",
+    handler: async (req, res) => {
+      const body = await parseBody(req)
+      if (!body.name || typeof body.name !== "string") {
+        return json(res, 400, { error: "name is required" })
+      }
+      const canvas = db.createCanvas({
+        name: body.name,
+        elements: body.elements || "[]",
+        appState: body.appState,
+      }) as { id: string; name: string }
+      try {
+        const { BrowserWindow } = await import("electron")
+        BrowserWindow.getAllWindows().forEach((win) => win.webContents.send("canvas:updated", canvas.id))
+      } catch { /* not running in Electron — ignore */ }
+      json(res, 201, { canvas })
+    },
+  },
+  {
+    method: "GET",
+    pattern: "/api/canvas/:id",
+    permission: "notes:read",
+    handler: async (_req, res, params) => {
+      const canvas = db.getCanvas(params.id)
+      if (!canvas) return json(res, 404, { error: "Canvas not found" })
+      json(res, 200, { canvas })
+    },
+  },
+  {
+    method: "PATCH",
+    pattern: "/api/canvas/:id",
+    permission: "notes:write",
+    handler: async (req, res, params) => {
+      const existing = db.getCanvas(params.id)
+      if (!existing) return json(res, 404, { error: "Canvas not found" })
+      const body = await parseBody(req)
+      const updates: Record<string, unknown> = {}
+      if (body.name !== undefined) updates.name = body.name
+      if (body.elements !== undefined) updates.elements = body.elements
+      if (body.appState !== undefined) updates.appState = body.appState
+      db.updateCanvas(params.id, updates)
+      try {
+        const { BrowserWindow } = await import("electron")
+        BrowserWindow.getAllWindows().forEach((win) => win.webContents.send("canvas:updated", params.id))
+      } catch { /* not running in Electron — ignore */ }
+      json(res, 200, { message: "Canvas updated" })
+    },
+  },
+  {
+    method: "DELETE",
+    pattern: "/api/canvas/:id",
+    permission: "notes:write",
+    handler: async (_req, res, params) => {
+      const existing = db.getCanvas(params.id)
+      if (!existing) return json(res, 404, { error: "Canvas not found" })
+      db.deleteCanvas(params.id)
+      json(res, 200, { message: "Canvas deleted" })
+    },
+  },
+  {
+    method: "POST",
+    pattern: "/api/canvas/:id/elements",
+    permission: "notes:write",
+    handler: async (req, res, params) => {
+      const canvas = db.getCanvas(params.id) as any
+      if (!canvas) return json(res, 404, { error: "Canvas not found" })
+      const body = await parseBody(req)
+      let existing: any[] = []
+      try { existing = JSON.parse(canvas.elements || "[]") } catch { /* ignore */ }
+      let newElements: any[] = []
+      try { newElements = JSON.parse(body.elements || "[]") } catch {
+        return json(res, 400, { error: "elements must be a valid JSON array" })
+      }
+      const merged = [...existing, ...newElements]
+      db.updateCanvas(params.id, { elements: JSON.stringify(merged) })
+      try {
+        const { BrowserWindow } = await import("electron")
+        BrowserWindow.getAllWindows().forEach((win) => win.webContents.send("canvas:updated", params.id))
+      } catch { /* not running in Electron — ignore */ }
+      json(res, 200, { elementsAdded: newElements.length, totalElements: merged.length })
+    },
+  },
 
   // ── Docker MCP ─────────────────────────────────────────────────────
   {
@@ -816,9 +966,9 @@ const routes: Route[] = [
 /* ================================================================== */
 
 function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
-  // CORS headers for local development
+  // CORS headers — allow any origin for localhost agent UIs
   res.setHeader("Access-Control-Allow-Origin", "*")
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
   if (req.method === "OPTIONS") {
@@ -830,6 +980,17 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
   // Parse URL (strip query string)
   const urlPath = (req.url || "/").split("?")[0]
   const method = (req.method || "GET").toUpperCase()
+
+  // ── Unauthenticated endpoints ──────────────────────────────────────
+  if (method === "GET" && (urlPath === "/health" || urlPath === "/api/health")) {
+    json(res, 200, {
+      status: "ok",
+      version: "2.0.0",
+      timestamp: new Date().toISOString(),
+      apiUrl: `http://127.0.0.1:${currentPort}`,
+    })
+    return
+  }
 
   // Authenticate — support both API keys (Bearer) and Agent tokens (Agent)
   const authHeader = req.headers.authorization || ""

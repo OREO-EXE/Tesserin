@@ -326,6 +326,8 @@ export function CreativeCanvas({ onSplitOpen, paneId = "primary" }: { onSplitOpe
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   /** Canvas scene queued when data loads before Excalidraw's onAPI fires (first-mount race) */
   const pendingSceneRef = useRef<{ elements: any[]; appState: any; files?: any } | null>(null)
+  /** Tracks the last canvas ID that was fully loaded — prevents spurious reloads when only canvasListLoading toggles */
+  const lastLoadedCanvasRef = useRef<string | null>(null)
   /** Library items read once on mount for Excalidraw's initialData (shared across canvases) */
   const [libraryInitData] = useState<any[] | undefined>(() => {
     try {
@@ -488,6 +490,16 @@ export function CreativeCanvas({ onSplitOpen, paneId = "primary" }: { onSplitOpe
       return
     }
 
+    // Skip reload when only canvasListLoading toggled — the canvas hasn't actually changed.
+    // This prevents spurious DB reads + readyToSave resets on background refreshes.
+    if (activeCanvasId === lastLoadedCanvasRef.current) return
+    lastLoadedCanvasRef.current = activeCanvasId
+
+    // Flush current canvas before switching — handles cases where the caller
+    // (e.g. sidebar onSelect) goes straight to setActiveCanvas without calling
+    // handleSelectCanvas's explicit saveNow() first.
+    saveNowRef.current?.()
+
     let cancelled = false
     setIsTransitioning(true)
     readyToSave.current = false
@@ -530,6 +542,7 @@ export function CreativeCanvas({ onSplitOpen, paneId = "primary" }: { onSplitOpe
             .updateCanvas(activeCanvasId!, {
               elements: lsCanvas.elements,
               appState: lsCanvas.app_state,
+              files: lsCanvas.files,
             })
             .catch(() => {})
         }
@@ -590,6 +603,7 @@ export function CreativeCanvas({ onSplitOpen, paneId = "primary" }: { onSplitOpe
     try {
       const elements = api.getSceneElements()
       const appState = api.getAppState()
+      const files = api.getFiles ? api.getFiles() : {}
       const persistAppState: Record<string, any> = {}
       for (const key of PERSIST_APP_STATE_KEYS) {
         if (key in appState) persistAppState[key] = appState[key]
@@ -600,6 +614,7 @@ export function CreativeCanvas({ onSplitOpen, paneId = "primary" }: { onSplitOpe
       if (!canvasId) return
       const elementsJson = JSON.stringify(elements)
       const appStateJson = JSON.stringify(persistAppState)
+      const filesJson = JSON.stringify(files)
 
       // Always write to localStorage as immediate backup
       try {
@@ -613,6 +628,7 @@ export function CreativeCanvas({ onSplitOpen, paneId = "primary" }: { onSplitOpe
         }
         canvas.elements = elementsJson
         canvas.app_state = appStateJson
+        canvas.files = filesJson
         canvas.updated_at = new Date().toISOString()
         localStorage.setItem(lsKey, JSON.stringify(canvas))
       } catch { }
@@ -621,6 +637,7 @@ export function CreativeCanvas({ onSplitOpen, paneId = "primary" }: { onSplitOpe
       storage.updateCanvas(canvasId, {
         elements: elementsJson,
         appState: appStateJson,
+        files: filesJson,
       }).catch(() => { })
 
       // Bump updated time in canvas list
@@ -634,7 +651,7 @@ export function CreativeCanvas({ onSplitOpen, paneId = "primary" }: { onSplitOpe
 
   // ── Debounced save ────────────────────────────────────────────
   const doSave = useCallback(
-    (elements: readonly any[], appState: Record<string, any>) => {
+    (elements: readonly any[], appState: Record<string, any>, files: Record<string, any> = {}) => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
 
       // Snapshot the canvas ID NOW so the debounced callback saves to the correct canvas
@@ -642,7 +659,7 @@ export function CreativeCanvas({ onSplitOpen, paneId = "primary" }: { onSplitOpe
       if (!targetCanvasId) return
 
       saveTimerRef.current = setTimeout(() => {
-        // Double-check we're still on the same canvas; abort if user已 switched
+        // Double-check we're still on the same canvas; abort if user switched
         if (canvasIdRef.current !== targetCanvasId) return
 
         try {
@@ -654,6 +671,7 @@ export function CreativeCanvas({ onSplitOpen, paneId = "primary" }: { onSplitOpe
 
           const elementsJson = JSON.stringify(elements)
           const appStateJson = JSON.stringify(persistAppState)
+          const filesJson = JSON.stringify(files)
 
           // Write to localStorage synchronously as backup
           try {
@@ -667,6 +685,7 @@ export function CreativeCanvas({ onSplitOpen, paneId = "primary" }: { onSplitOpe
             }
             canvas.elements = elementsJson
             canvas.app_state = appStateJson
+            canvas.files = filesJson
             canvas.updated_at = new Date().toISOString()
             localStorage.setItem(lsKey, JSON.stringify(canvas))
           } catch { }
@@ -676,6 +695,7 @@ export function CreativeCanvas({ onSplitOpen, paneId = "primary" }: { onSplitOpe
             .updateCanvas(targetCanvasId, {
               elements: elementsJson,
               appState: appStateJson,
+              files: filesJson,
             })
             .catch((err) =>
               console.warn("[Tesserin] Canvas save failed:", err),
@@ -708,15 +728,43 @@ export function CreativeCanvas({ onSplitOpen, paneId = "primary" }: { onSplitOpe
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange)
   }, [saveNow])
 
-  // Cleanup save timer on unmount — always flush current state to DB
+  // Cleanup save timer on unmount — always flush current state to DB.
+  // NOTE: Intentionally bypasses readyToSave guard. api.getSceneElements() always
+  // returns the live scene, so it is safe to save regardless of when the component
+  // mounted. This fixes data loss when the user switches tabs within the first 800ms.
   useEffect(() => {
     return () => {
-      // Cancel any pending debounced save
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      // Always save current state on unmount
-      saveNow()
+      const api = apiRef.current
+      const canvasId = canvasIdRef.current
+      if (!api || !canvasId) return
+      try {
+        const elements = api.getSceneElements()
+        const appState = api.getAppState()
+        const files = api.getFiles ? api.getFiles() : {}
+        const persistAppState: Record<string, any> = {}
+        for (const key of PERSIST_APP_STATE_KEYS) {
+          if (key in appState) persistAppState[key] = appState[key]
+        }
+        const elementsJson = JSON.stringify(elements)
+        const appStateJson = JSON.stringify(persistAppState)
+        const filesJson = JSON.stringify(files)
+        // Synchronous localStorage write
+        try {
+          const lsKey = `tesserin:canvas:${canvasId}`
+          const existing = localStorage.getItem(lsKey)
+          const lsData = existing ? JSON.parse(existing) : { id: canvasId, name: "Canvas", created_at: new Date().toISOString() }
+          lsData.elements = elementsJson
+          lsData.app_state = appStateJson
+          lsData.files = filesJson
+          lsData.updated_at = new Date().toISOString()
+          localStorage.setItem(lsKey, JSON.stringify(lsData))
+        } catch { }
+        // Async IPC (best-effort)
+        storage.updateCanvas(canvasId, { elements: elementsJson, appState: appStateJson, files: filesJson }).catch(() => {})
+      } catch { }
     }
-  }, [saveNow])
+  }, []) // empty deps — refs are always current, no stale closure risk
 
   const onAPI = useCallback((api: any) => {
     apiRef.current = api
@@ -733,9 +781,9 @@ export function CreativeCanvas({ onSplitOpen, paneId = "primary" }: { onSplitOpe
 
   // Excalidraw onChange receives (elements, appState, files)
   const onChange = useCallback(
-    (elements: readonly any[], appState: Record<string, any>) => {
+    (elements: readonly any[], appState: Record<string, any>, files: Record<string, any> = {}) => {
       if (!readyToSave.current) return
-      doSave(elements, appState)
+      doSave(elements, appState, files)
     },
     [doSave],
   )

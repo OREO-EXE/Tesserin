@@ -46,6 +46,7 @@ const path = __importStar(require("path"));
 const os = __importStar(require("os"));
 const child_process_1 = require("child_process");
 const crypto_1 = require("crypto");
+const pty = __importStar(require("node-pty"));
 /* ================================================================== */
 /*  Input validation helpers                                           */
 /* ================================================================== */
@@ -207,7 +208,13 @@ function registerIpcHandlers() {
     electron_1.ipcMain.handle('db:templates:delete', (_e, id) => db.deleteTemplate(validateId(id, 'id')));
     // ── Settings ──────────────────────────────────────────────────────
     electron_1.ipcMain.handle('db:settings:get', (_e, key) => db.getSetting(requireString(key, 'key')));
-    electron_1.ipcMain.handle('db:settings:set', (_e, key, value) => db.setSetting(requireString(key, 'key'), requireString(value, 'value')));
+    electron_1.ipcMain.handle('db:settings:set', (_e, key, value) => {
+        // key must be non-empty; value may be an empty string (e.g. clearing an API key)
+        const k = requireString(key, 'key');
+        if (typeof value !== 'string')
+            throw new Error(`Invalid parameter "value": expected string`);
+        return db.setSetting(k, value);
+    });
     electron_1.ipcMain.handle('db:settings:getAll', () => db.getAllSettings());
     electron_1.ipcMain.handle('db:clear', () => db.clearAllData());
     // ── Canvases ──────────────────────────────────────────────────────
@@ -571,6 +578,128 @@ function registerIpcHandlers() {
             linkCount: node?.linkCount || 0,
             edges: relatedEdges
         };
+    });
+    // ── Terminal (PTY) ──────────────────────────────────────────────────
+    const ptyProcesses = new Map();
+    const ptyDataHandlerRegistered = new Set();
+    electron_1.ipcMain.handle('terminal:openExternal', (_e, url) => {
+        // Only allow http/https URLs to prevent protocol abuse
+        if (!/^https?:\/\//.test(url))
+            return false;
+        electron_1.shell.openExternal(url);
+        return true;
+    });
+    electron_1.ipcMain.handle('terminal:getShells', async () => {
+        const platform = os.platform();
+        const shells = [];
+        if (platform === 'win32') {
+            const candidates = [
+                { name: 'PowerShell Core', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' },
+                { name: 'PowerShell', path: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' },
+                { name: 'Command Prompt', path: 'C:\\Windows\\System32\\cmd.exe' },
+                { name: 'WSL', path: 'C:\\Windows\\System32\\wsl.exe' },
+            ];
+            for (const c of candidates) {
+                if (fs.existsSync(c.path))
+                    shells.push(c);
+            }
+        }
+        else {
+            // Seed with $SHELL first so the user's preferred shell is the default
+            const envShell = process.env.SHELL;
+            if (envShell && fs.existsSync(envShell)) {
+                shells.push({ name: `${path.basename(envShell)} (default)`, path: envShell });
+            }
+            // Parse /etc/shells for additional options
+            try {
+                const shellNames = {
+                    bash: 'Bash', zsh: 'Zsh', fish: 'Fish', sh: 'sh',
+                    dash: 'Dash', ksh: 'KSH', tcsh: 'TCSH', nu: 'Nushell',
+                };
+                const lines = fs.readFileSync('/etc/shells', 'utf8').split('\n');
+                for (const line of lines) {
+                    const sp = line.trim();
+                    if (!sp.startsWith('/') || sp.startsWith('#'))
+                        continue;
+                    if (shells.some(s => s.path === sp))
+                        continue; // already added
+                    shells.push({ name: shellNames[path.basename(sp)] || path.basename(sp), path: sp });
+                }
+            }
+            catch {
+                // /etc/shells not available — add common fallbacks
+                for (const sp of ['/bin/zsh', '/bin/bash', '/bin/sh']) {
+                    if (fs.existsSync(sp) && !shells.some(s => s.path === sp)) {
+                        shells.push({ name: path.basename(sp), path: sp });
+                    }
+                }
+            }
+        }
+        return shells.length > 0
+            ? shells
+            : [{ name: platform === 'win32' ? 'PowerShell' : 'bash', path: platform === 'win32' ? 'powershell.exe' : '/bin/bash' }];
+    });
+    electron_1.ipcMain.handle('terminal:spawn', (_e, id, cwd, shellPath) => {
+        // Check if process already exists for this ID
+        const existing = ptyProcesses.get(id);
+        if (existing) {
+            console.log(`[Terminal] Reusing existing process for ${id} (PID: ${existing.pid})`);
+            return { success: true, pid: existing.pid, reconnected: true };
+        }
+        const defaultShell = os.platform() === 'win32' ? 'powershell.exe' : process.env.SHELL || '/bin/bash';
+        const shell = shellPath || defaultShell;
+        const workingDir = cwd || os.homedir();
+        try {
+            const ptyProcess = pty.spawn(shell, [], {
+                name: 'xterm-256color',
+                cols: 80,
+                rows: 24,
+                cwd: workingDir,
+                env: safeEnv(),
+            });
+            ptyProcesses.set(id, ptyProcess);
+            console.log(`[Terminal] Created new process for ${id} (PID: ${ptyProcess.pid})`);
+            return { success: true, pid: ptyProcess.pid };
+        }
+        catch (err) {
+            console.error(`[Terminal] Failed to spawn for ${id}:`, err);
+            return { success: false, error: String(err) };
+        }
+    });
+    electron_1.ipcMain.handle('terminal:write', (_e, id, data) => {
+        const ptyProcess = ptyProcesses.get(id);
+        if (ptyProcess) {
+            ptyProcess.write(data);
+            return true;
+        }
+        return false;
+    });
+    electron_1.ipcMain.handle('terminal:resize', (_e, id, cols, rows) => {
+        const ptyProcess = ptyProcesses.get(id);
+        if (ptyProcess) {
+            ptyProcess.resize(cols, rows);
+            return true;
+        }
+        return false;
+    });
+    electron_1.ipcMain.handle('terminal:kill', (_e, id) => {
+        const ptyProcess = ptyProcesses.get(id);
+        if (ptyProcess) {
+            ptyProcess.kill();
+            ptyProcesses.delete(id);
+            ptyDataHandlerRegistered.delete(id);
+            return true;
+        }
+        return false;
+    });
+    electron_1.ipcMain.on('terminal:data', (event, id) => {
+        const ptyProcess = ptyProcesses.get(id);
+        if (ptyProcess && !ptyDataHandlerRegistered.has(id)) {
+            ptyDataHandlerRegistered.add(id);
+            ptyProcess.onData((data) => {
+                event.sender.send('terminal:data', id, data);
+            });
+        }
     });
 }
 //# sourceMappingURL=ipc-handlers.js.map
